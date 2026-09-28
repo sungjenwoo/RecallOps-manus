@@ -63,6 +63,50 @@ function median(values: number[]): number {
     : sorted[middle]!;
 }
 
+/** Return quota alerts for only the requesting account; never include peer data. */
+export function buildPersonalUsageAlerts(input: {
+  actorHash: string;
+  rateRows: readonly { subjectHash: string; requestCount: number }[];
+  requestLimit?: number;
+}): AuditUsageAlert[] {
+  const requestLimit = input.requestLimit ?? REQUESTS_PER_MINUTE;
+  const ownRow = input.rateRows.find(
+    row => row.subjectHash === input.actorHash
+  );
+  if (!ownRow) return [];
+
+  const requestCount = safeCount(ownRow.requestCount);
+  if (requestCount > requestLimit) {
+    return [
+      {
+        id: "personal-limit-exceeded",
+        severity: "critical",
+        kind: "request-limit",
+        actorLabel: "You",
+        requestCount,
+        threshold: requestLimit,
+        title: "Your request limit was exceeded",
+        detail: `${requestCount} attempts in the current minute; requests above the ${requestLimit}-per-minute limit were blocked.`,
+      },
+    ];
+  }
+  if (requestCount >= Math.ceil(requestLimit * 0.8)) {
+    return [
+      {
+        id: "personal-limit-near",
+        severity: "warning",
+        kind: "request-limit",
+        actorLabel: "You",
+        requestCount,
+        threshold: Math.ceil(requestLimit * 0.8),
+        title: "Your request limit is approaching",
+        detail: `${requestCount} attempts in the current minute, at least 80% of your ${requestLimit}-per-minute limit.`,
+      },
+    ];
+  }
+  return [];
+}
+
 /**
  * Build ephemeral admin-only usage signals from the existing pseudonymous
  * current-minute counters. No alert history or identity lookup is created.
@@ -301,6 +345,14 @@ export async function getAuditUsageDashboard(input: {
     rateRows,
     requestLimit: REQUESTS_PER_MINUTE,
   });
+  const personalAlerts =
+    input.scope === "personal"
+      ? buildPersonalUsageAlerts({
+          actorHash: input.actorHash,
+          rateRows,
+          requestLimit: REQUESTS_PER_MINUTE,
+        })
+      : [];
 
   const attemptsThisMinute = rateRows.reduce(
     (sum, row) => sum + safeCount(row.requestCount),
@@ -336,6 +388,7 @@ export async function getAuditUsageDashboard(input: {
     },
     series,
     alerts,
+    personalAlerts,
     recentEvents: recentRows.map(row => ({
       id: row.id,
       actorLabel:

@@ -50,7 +50,7 @@ The dashboard reports accepted live memory operations from audit events separate
 
 ### Admin usage alerts
 
-Only the admin-authorized workspace response includes alert signals. A warning appears at 24 of 30 requests in the current per-account minute; exceeding 30 is critical. An unusual-usage warning requires at least four active accounts and flags an account at `max(10, 3 × median(other active accounts))` requests. Labels remain pseudonymous. Alerts are recalculated from the existing current-minute rate-limit rows on each dashboard refresh; no alert record, identity lookup, or external notification is created. The spike rule is a review heuristic, not a security verdict.
+Personal-scope responses include quota alerts for the requesting account only: a warning at 24 of 30 requests in the current per-account minute and a critical alert above 30. The backend matches the authenticated actor hash before generating that private alert and never returns peer counters in personal scope. Admin-authorized workspace responses show the same thresholds with pseudonymous labels. An unusual-usage warning requires at least four active accounts and flags an account at `max(10, 3 × median(other active accounts))` requests. Alerts are recalculated from existing current-minute rate-limit rows on each dashboard refresh; no alert record, identity lookup, or external notification is created. The spike rule is a review heuristic, not a security verdict.
 
 ## Proposed telemetry/ticketing scope (not connected)
 

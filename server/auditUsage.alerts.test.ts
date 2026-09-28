@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildWorkspaceUsageAlerts } from "./auditUsage";
+import {
+  buildPersonalUsageAlerts,
+  buildWorkspaceUsageAlerts,
+} from "./auditUsage";
 
 const actor = (prefix: string) => `${prefix.repeat(12)}${"a".repeat(52)}`;
 
@@ -72,6 +75,66 @@ describe("admin usage alerts", () => {
     ).toEqual([]);
     expect(
       buildWorkspaceUsageAlerts({ scope: "workspace", rateRows: rows })
+    ).toEqual([]);
+  });
+});
+
+describe("personal usage alerts", () => {
+  it("shows the account holder's threshold alert without returning peer data", () => {
+    const ownActor = actor("j");
+    const otherActor = actor("k");
+    const alerts = buildPersonalUsageAlerts({
+      actorHash: ownActor,
+      rateRows: [
+        { subjectHash: ownActor, requestCount: 24 },
+        { subjectHash: otherActor, requestCount: 31 },
+      ],
+    });
+
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toMatchObject({
+      severity: "warning",
+      kind: "request-limit",
+      actorLabel: "You",
+      requestCount: 24,
+      threshold: 24,
+      title: "Your request limit is approaching",
+    });
+    expect(JSON.stringify(alerts)).not.toContain(ownActor);
+    expect(JSON.stringify(alerts)).not.toContain(otherActor);
+  });
+
+  it("shows a critical alert after the per-account limit is exceeded", () => {
+    const ownActor = actor("m");
+    const alerts = buildPersonalUsageAlerts({
+      actorHash: ownActor,
+      rateRows: [{ subjectHash: ownActor, requestCount: 31 }],
+    });
+
+    expect(alerts).toHaveLength(1);
+    expect(alerts[0]).toMatchObject({
+      severity: "critical",
+      actorLabel: "You",
+      requestCount: 31,
+      threshold: 30,
+      title: "Your request limit was exceeded",
+    });
+  });
+
+  it("does not alert below threshold or when only another account has counters", () => {
+    const ownActor = actor("n");
+    const otherActor = actor("o");
+    expect(
+      buildPersonalUsageAlerts({
+        actorHash: ownActor,
+        rateRows: [{ subjectHash: ownActor, requestCount: 23 }],
+      })
+    ).toEqual([]);
+    expect(
+      buildPersonalUsageAlerts({
+        actorHash: ownActor,
+        rateRows: [{ subjectHash: otherActor, requestCount: 31 }],
+      })
     ).toEqual([]);
   });
 });

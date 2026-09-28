@@ -165,6 +165,7 @@ function createSampleDashboardData(
           "18 attempts are at least 3× the median of the other active accounts (minimum 10 requests).",
       },
     ],
+    personalAlerts: [],
     recentEvents: filteredEvents
       .toSorted((a, b) => b.createdAt - a.createdAt)
       .slice(0, 50),
@@ -288,6 +289,11 @@ export default function AuditUsageDashboard() {
     );
   };
   const data = isSamplePreview ? sampleData : query.data;
+  const displayedAlerts = data
+    ? scope === "workspace"
+      ? data.alerts
+      : data.personalAlerts
+    : [];
   const displayAttempts = data
     ? Math.min(data.summary.attemptsThisMinute, data.requestLimitPerMinute)
     : 0;
@@ -607,31 +613,43 @@ export default function AuditUsageDashboard() {
             </span>
           </div>
 
-          {(isSamplePreview || (isAdmin && scope === "workspace")) && (
+          {(isSamplePreview || auth.isAuthenticated) && (
             <section
-              className={`audit-alert-panel ${data.alerts.length ? "has-alerts" : "no-alerts"}`}
-              aria-label="Admin usage alerts"
+              className={`audit-alert-panel ${displayedAlerts.length ? "has-alerts" : "no-alerts"}`}
+              aria-label={
+                scope === "workspace"
+                  ? "Admin usage alerts"
+                  : "Personal request-limit alerts"
+              }
               aria-live="polite"
             >
               <div className="audit-alert-heading">
                 <div>
-                  <div className="panel-kicker">ADMIN ALERTS · IN-APP ONLY</div>
+                  <div className="panel-kicker">
+                    {isSamplePreview
+                      ? "SAMPLE ALERT · FICTIONAL"
+                      : scope === "workspace"
+                        ? "ADMIN ALERTS · IN-APP ONLY"
+                        : "ACCOUNT ALERT · PRIVATE"}
+                  </div>
                   <h2>Usage signals</h2>
                   <p>
                     {isSamplePreview
                       ? "A fictional alert demonstrates the rule; no live counters are queried."
-                      : "Current-minute signals from pseudonymous request counters."}
+                      : scope === "workspace"
+                        ? "Current-minute signals from pseudonymous request counters."
+                        : "Only your own current-minute request counter is evaluated."}
                   </p>
                 </div>
                 <span className="audit-alert-total">
-                  {data.alerts.length
-                    ? `${data.alerts.length} active`
+                  {displayedAlerts.length
+                    ? `${displayedAlerts.length} active`
                     : "No active alerts"}
                 </span>
               </div>
-              {data.alerts.length ? (
+              {displayedAlerts.length ? (
                 <div className="audit-alert-list">
-                  {data.alerts.map(alert => (
+                  {displayedAlerts.map(alert => (
                     <div
                       className={`audit-alert-card audit-alert-${alert.severity}`}
                       key={alert.id}
@@ -660,14 +678,19 @@ export default function AuditUsageDashboard() {
               ) : (
                 <div className="audit-alert-empty">
                   <CheckCircle2 className="h-4 w-4" />
-                  No threshold or unusual-usage signals in the current minute.
+                  {scope === "workspace"
+                    ? "No workspace threshold or unusual-usage signals in the current minute."
+                    : "No request-limit threshold alerts for your account in the current minute."}
                 </div>
               )}
               <p className="audit-alert-note">
                 Signals fire at 24/30 requests per minute, above the 30-request
-                cap, or at 3× the median of at least three peer accounts (with a
-                10-request minimum). These heuristics are not proof of misuse.
-                Alert history and external notifications are not stored.
+                cap
+                {scope === "workspace"
+                  ? ", or at 3× the median of at least three peer accounts (with a 10-request minimum)."
+                  : ". Workspace unusual-usage signals are visible only to admins."}{" "}
+                These heuristics are not proof of misuse. Alert history and
+                external notifications are not stored.
               </p>
             </section>
           )}

@@ -8,7 +8,7 @@
 - [x] Added human-confirmed outcome capture, secret redaction, simulation-only local memory, and distinct live/simulation labels.
 - [x] Added private per-user Hindsight banks, mandatory authentication for live operations, persistent per-user request limits, and pseudonymous audit events with 30-day retention.
 - [x] Built an interactive **Usage & audit** dashboard with time/action filters, live API trends, rolling request-limit usage, recent audit records and expiry, CSV export, user-personal view, and pseudonymous admin workspace view.
-- [x] Added admin-only in-app alerts for 80% request-limit use, limit exceedance, and unusual request spikes; alerts use existing pseudonymous counters and are not separately retained or externally delivered.
+- [x] Added private per-account in-app quota alerts for signed-in users, plus admin-only workspace threshold and unusual-spike alerts; alerts use existing pseudonymous counters and are not separately retained or externally delivered.
 - [x] Defined a proposed read-only telemetry/ticketing allowlist and retention boundary before any operational connector is enabled.
 - [x] Added a no-login synthetic preview at `/?section=usage&sample=1`; preview is generated in the browser, never queries/writes live audit data, and is clearly marked fictional.
 - [x] Verified the synthetic action filter shows only the matching event rows while period-wide KPIs remain labeled; verified responsive desktop and phone layouts.

@@ -15,7 +15,7 @@
 - [x] Ran `pnpm check`, `pnpm test` (17 passing in both the WebDev project and selected GitHub clone), and `pnpm build`; no oversized-chunk warning.
 - [x] Verified authenticated read-only Hindsight/Groq provider checks and an earlier fictional-data memory/planner flow without logging secret values or response bodies.
 - [x] Kept the new per-user bank unseeded: the sandbox OAuth/Cloudflare sign-in did not complete, so no per-user records or additional Groq request were submitted.
-- [x] Pushed source, docs, tests, migrations, and tracker to `tanveerpasha6381-hub/RecallOps-manus` on `main` (dashboard commit `289bf56`).
+- [x] Pushed source, docs, tests, migrations, and tracker to `tanveerpasha6381-hub/RecallOps-manus` on `main`.
 
 ## Scope note
 

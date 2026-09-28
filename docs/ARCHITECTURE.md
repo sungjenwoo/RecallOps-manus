@@ -31,6 +31,10 @@ sequenceDiagram
 
 If `HINDSIGHT_API_URL` is unset, the app selects an explicitly labelled public simulation path: fictional seed examples plus browser-local outcome storage. In live mode, sign-in is mandatory; anonymous requests cannot access, seed, analyze against, or retain into Hindsight. Each account receives a stable opaque bank ID derived with HMAC from its OAuth identity and the server-side `JWT_SECRET`. The ID and raw OAuth identity are not exposed to the browser or stored in the app's audit log.
 
+## Sign-in and explicit seed demonstration
+
+The **Sign in for your private pack** action first records a one-use timestamp in tab-scoped session storage, then starts the existing Manus OAuth flow. After the callback returns, the client waits for both authenticated user state and live Hindsight configuration, consumes the marker once (10-minute expiry), and invokes the protected seed route. Generic sign-in does not set this marker and never seeds automatically. The server derives the user's private bank, enforces durable limits, and upserts the clearly synthetic records using stable document IDs. On success, the client opens **Usage & audit** so the user can inspect the live seed action. The marker contains no account, incident, or provider data. If storage, OAuth, database, or Hindsight is unavailable, the seed is not represented as a successful live write.
+
 ## Trust boundaries and persistence
 
 - **Browser:** incident form, evidence viewer, human confirmation, and simulation-only local storage. The browser cannot choose a bank ID.

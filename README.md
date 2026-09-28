@@ -61,12 +61,17 @@ Open the local URL printed by the dev server. The app works without credentials 
 
 ### Optional integrations
 
-| Variable            | Purpose                                                                                                                        |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `HINDSIGHT_API_URL` | Base URL of your Hindsight API instance (omit `/v1`); obtain the correct URL from your Hindsight deployment or Cloud settings. |
-| `HINDSIGHT_API_KEY` | Optional for local/self-hosted Hindsight with auth disabled; set the server-side bearer key when API-key auth is enabled.      |
-| `GROQ_API_KEY`      | Optional server-side key for Groq evidence-grounded plan generation.                                                           |
-| `GROQ_MODEL`        | Optional Groq model name; defaults to `openai/gpt-oss-120b`.                                                                   |
+| Variable                | Purpose                                                                                                                        |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `HINDSIGHT_API_URL`     | Base URL of your Hindsight API instance (omit `/v1`); obtain the correct URL from your Hindsight deployment or Cloud settings. |
+| `HINDSIGHT_API_KEY`     | Optional for local/self-hosted Hindsight with auth disabled; set the server-side bearer key when API-key auth is enabled.      |
+| `VITE_OAUTH_PORTAL_URL` | Manus sign-in portal base URL used by the client.                                                                              |
+| `VITE_APP_ID`           | Registered RecallOps app ID used by the sign-in flow.                                                                          |
+| `OAUTH_SERVER_URL`      | Server-side OAuth token/user-info service URL.                                                                                 |
+| `DATABASE_URL`          | Required for live user sessions, durable request limits, and audit records.                                                    |
+| `JWT_SECRET`            | Required stable server secret for session signing and per-user private-bank derivation.                                        |
+| `GROQ_API_KEY`          | Optional server-side key for Groq evidence-grounded plan generation.                                                           |
+| `GROQ_MODEL`            | Optional Groq model name; defaults to `openai/gpt-oss-120b`.                                                                   |
 
 The runtime intentionally ignores any legacy `HINDSIGHT_BANK_ID` setting: live bank IDs are derived server-side per signed-in account. Live mode also requires the managed MySQL tables in `drizzle/schema.ts`; for a fresh environment, configure `DATABASE_URL` and apply the generated Drizzle migration before enabling live operations. The WebDev demo database already has the security tables applied.
 
@@ -74,7 +79,7 @@ The runtime intentionally ignores any legacy `HINDSIGHT_BANK_ID` setting: live b
 
 The optional Groq path defaults to `openai/gpt-oss-120b` and requests strict JSON Schema output, then validates evidence IDs and filters unsafe action-like recommendations. See the [official Groq model page](https://console.groq.com/docs/model/openai/gpt-oss-120b), [Structured Outputs guide](https://console.groq.com/docs/structured-outputs), and [`docs/GROQ_REFERENCES.md`](docs/GROQ_REFERENCES.md).
 
-When a Hindsight URL is configured, sign in first. Select **Memory bank → Load synthetic pack into my bank** to retain the fictional starter postmortems in your private bank. Then return to **Incident room**, choose a scenario, and run analysis. A verified outcome is retained only after the human-confirmation control is checked.
+When live OAuth, database, and Hindsight settings are configured, open **Memory bank → Sign in for your private pack**. The app carries that explicit, one-use seed request across the OAuth redirect (for up to 10 minutes), loads the fictional postmortems into the signed-in user's private bank, and opens **Usage & audit** to verify the live seed event. Generic sign-in never seeds automatically. Then open **Incident room**, choose a scenario, and run analysis. A verified outcome is retained only after the human-confirmation control is checked. Without Hindsight configuration, the app stays in visibly labelled simulation mode and performs no private-bank write.
 
 ### Data handling and limitations
 

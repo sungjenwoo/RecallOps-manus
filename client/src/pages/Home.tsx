@@ -1,11 +1,16 @@
 import DashboardLayout from "@/components/DashboardLayout";
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  clearDemoSeedOnLogin,
+  consumeDemoSeedOnLogin,
+  queueDemoSeedOnLogin,
+} from "@/lib/pendingDemoSeed";
 import { trpc } from "@/lib/trpc";
 import { DEMO_INCIDENTS, DEMO_SCENARIOS } from "@shared/incidentSeeds";
 import {
@@ -187,6 +192,7 @@ export default function Home() {
     readStorage(ACTIVITY_KEY, [])
   );
   const [seeded, setSeeded] = useState(false);
+  const seedResumeHandled = useRef(false);
   const [showMemoryComparison, setShowMemoryComparison] = useState(true);
   const statusQuery = trpc.recallOps.status.useQuery(undefined, {
     retry: false,
@@ -213,6 +219,28 @@ export default function Home() {
     setActivity(current => [item, ...current].slice(0, 40));
   }
 
+  function beginLogin(): boolean {
+    const started = startLogin();
+    if (!started) {
+      toast.error(
+        "Manus sign-in is not configured for this deployment. No live seed was attempted."
+      );
+    }
+    return started;
+  }
+
+  function navigateToSection(next: Section) {
+    setSection(next);
+    const url = new URL(window.location.href);
+    if (next === "incident") url.searchParams.delete("section");
+    else url.searchParams.set("section", next);
+    window.history.replaceState(
+      {},
+      "",
+      `${url.pathname}${url.search}${url.hash}`
+    );
+  }
+
   function selectScenario(id: string) {
     const next = DEMO_SCENARIOS.find(item => item.id === id);
     if (!next) return;
@@ -229,7 +257,7 @@ export default function Home() {
   async function runAnalysis() {
     if (needsLiveSignIn) {
       toast.info("Sign in to access your private incident memory.");
-      startLogin();
+      beginLogin();
       return;
     }
     if (summary.trim().length < 12) {
@@ -276,7 +304,7 @@ export default function Home() {
     if (!analysis) return;
     if (needsLiveSignIn) {
       toast.info("Sign in to retain a lesson in your private memory bank.");
-      startLogin();
+      beginLogin();
       return;
     }
     if (!confirmed) {
@@ -339,14 +367,31 @@ export default function Home() {
 
   async function seedMemoryBank() {
     if (needsLiveSignIn) {
-      toast.info("Sign in to seed your private memory bank.");
-      startLogin();
+      let queued = false;
+      try {
+        queued = queueDemoSeedOnLogin(window.sessionStorage);
+      } catch {
+        // Sign-in can continue; the user can retry the seed manually afterward.
+      }
+      toast.info(
+        queued
+          ? "Sign in to continue. The fictional pack will load into your private bank when you return."
+          : "Sign in, then return to Memory bank and load the fictional pack."
+      );
+      if (!beginLogin()) {
+        try {
+          clearDemoSeedOnLogin(window.sessionStorage);
+        } catch {
+          // No queued intent remains accessible if session storage is blocked.
+        }
+      }
       return;
     }
     try {
       const result = await seedMutation.mutateAsync();
       if (result.mode === "hindsight" && result.saved) {
         setSeeded(true);
+        navigateToSection("usage");
         addActivity({
           id: `SEED-${Date.now()}`,
           title: "Synthetic pack retained in Hindsight",
@@ -371,18 +416,30 @@ export default function Home() {
     }
   }
 
-  const navAction = (id: string) => {
-    const next = id as Section;
-    setSection(next);
-    const url = new URL(window.location.href);
-    if (next === "incident") url.searchParams.delete("section");
-    else url.searchParams.set("section", next);
-    window.history.replaceState(
-      {},
-      "",
-      `${url.pathname}${url.search}${url.hash}`
-    );
-  };
+  const seedMemoryBankRef = useRef(seedMemoryBank);
+  seedMemoryBankRef.current = seedMemoryBank;
+
+  useEffect(() => {
+    if (
+      auth.loading ||
+      !auth.isAuthenticated ||
+      !live ||
+      seedResumeHandled.current
+    ) {
+      return;
+    }
+    let shouldResume = false;
+    try {
+      shouldResume = consumeDemoSeedOnLogin(window.sessionStorage);
+    } catch {
+      return;
+    }
+    if (!shouldResume) return;
+    seedResumeHandled.current = true;
+    void seedMemoryBankRef.current();
+  }, [auth.isAuthenticated, auth.loading, live]);
+
+  const navAction = (id: string) => navigateToSection(id as Section);
   const memoryCount =
     outcomes.length + (live && !seeded ? 0 : DEMO_INCIDENTS.length);
 
@@ -405,7 +462,7 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <StatusPill live={live} authenticated={auth.isAuthenticated} />
             {needsLiveSignIn && (
-              <Button size="sm" onClick={startLogin}>
+              <Button size="sm" onClick={beginLogin}>
                 Sign in
               </Button>
             )}
@@ -705,7 +762,7 @@ export default function Home() {
                           Hindsight bank.
                         </p>
                       </div>
-                      <Button size="sm" variant="outline" onClick={startLogin}>
+                      <Button size="sm" variant="outline" onClick={beginLogin}>
                         Sign in
                       </Button>
                     </div>
@@ -897,7 +954,6 @@ export default function Home() {
               outcomes={outcomes}
               seeded={seeded}
               seeding={seedMutation.isPending}
-              onSignIn={startLogin}
               onSeed={seedMemoryBank}
               onAnalyze={() => navAction("incident")}
             />
@@ -1246,7 +1302,6 @@ function MemoryPage({
   outcomes,
   seeded,
   seeding,
-  onSignIn,
   onSeed,
   onAnalyze,
 }: {
@@ -1256,7 +1311,6 @@ function MemoryPage({
   outcomes: StoredOutcome[];
   seeded: boolean;
   seeding: boolean;
-  onSignIn: () => void;
   onSeed: () => void;
   onAnalyze: () => void;
 }) {
@@ -1361,7 +1415,7 @@ function MemoryPage({
           <p>Fictional examples are labelled; no customer data is present.</p>
         </div>
         <Button
-          onClick={live && !authenticated ? onSignIn : onSeed}
+          onClick={onSeed}
           disabled={seeding || !live || authLoading}
           variant="outline"
           className="seed-button"
@@ -1379,7 +1433,9 @@ function MemoryPage({
             ? "Synthetic pack loaded"
             : live && !authenticated
               ? "Sign in for your private pack"
-              : "Load synthetic pack into my bank"}
+              : !live
+                ? "Hindsight setup required"
+                : "Load synthetic pack into my bank"}
         </Button>
       </div>
       {live && !authenticated && (
@@ -1392,8 +1448,8 @@ function MemoryPage({
               personal bank.
             </p>
           </div>
-          <Button size="sm" variant="outline" onClick={onSignIn}>
-            Sign in
+          <Button size="sm" variant="outline" onClick={onSeed}>
+            Sign in and load pack
           </Button>
         </div>
       )}

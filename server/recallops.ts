@@ -539,11 +539,8 @@ export async function analyzeIncident(input: AnalyzeInput, bankId?: string) {
       if (evidence.length === 0)
         memoryNote =
           "Hindsight is connected, but no matching bank memories were returned. Load the clearly synthetic demo pack or save a confirmed outcome to begin the learning loop.";
-    } catch (error) {
-      console.error(
-        "[RecallOps] Hindsight recall failed:",
-        error instanceof Error ? error.message : "unknown error"
-      );
+    } catch {
+      console.error("[RecallOps] Hindsight recall failed");
       memoryMode = "fallback";
       memoryNote =
         "Hindsight could not be reached for this analysis. Synthetic examples are shown as fallback evidence; this result is not a live memory recall.";

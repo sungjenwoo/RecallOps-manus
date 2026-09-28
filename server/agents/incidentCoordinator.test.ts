@@ -108,7 +108,7 @@ describe("single-call incident coordinator", () => {
     raw.memoryBrief.evidenceIds = ["OTHER-USER-ID"];
     raw.memoryBrief.summary = "Invented cross-account memory.";
     raw.readOnlyChecks.push({
-      title: "Restart the service",
+      title: "Roll back the release",
       rationale: "Do this now.",
       evidenceIds: ["MEM-1"],
     });
@@ -124,6 +124,53 @@ describe("single-call incident coordinator", () => {
     expect(plan?.readOnlyChecks).toHaveLength(1);
     expect(plan?.playbookSteps).toHaveLength(1);
     expect(plan?.caution).toContain("hypotheses only");
+  });
+
+  it("removes shell and CLI commands from otherwise read-only-looking checks", () => {
+    const raw = validModelOutput();
+    raw.readOnlyChecks[0]!.title = "Run kubectl get pods";
+
+    const plan = validateCoordinatorOutput(raw, evidence, sanitizeText);
+
+    expect(plan?.readOnlyChecks).toHaveLength(0);
+  });
+
+  it("removes unsafe action language from triage and memory summaries", () => {
+    const raw = validModelOutput();
+    raw.triageSummary = "Restart the service immediately.";
+    raw.memoryBrief.summary = "Rollback the latest deployment now.";
+
+    const plan = validateCoordinatorOutput(raw, evidence, sanitizeText);
+
+    expect(plan?.triageSummary).toBe("");
+    expect(plan?.memoryBrief).toEqual({ summary: "", evidenceIds: [] });
+  });
+
+  it("rejects parseable JSON that is incomplete, has extra fields, or malformed items", () => {
+    expect(validateCoordinatorOutput({}, evidence, sanitizeText)).toBeNull();
+
+    const incomplete: Record<string, unknown> = { ...validModelOutput() };
+    delete incomplete.playbookSteps;
+    expect(
+      validateCoordinatorOutput(incomplete, evidence, sanitizeText)
+    ).toBeNull();
+
+    const extraField = {
+      ...validModelOutput(),
+      internalReasoning: "This field is not part of the output contract.",
+    };
+    expect(
+      validateCoordinatorOutput(extraField, evidence, sanitizeText)
+    ).toBeNull();
+
+    const malformedItem: Record<string, unknown> = { ...validModelOutput() };
+    const hypotheses = malformedItem.hypotheses as Array<
+      Record<string, unknown>
+    >;
+    delete hypotheses[0]!.rationale;
+    expect(
+      validateCoordinatorOutput(malformedItem, evidence, sanitizeText)
+    ).toBeNull();
   });
 
   it("does not call a provider when no API key is configured", async () => {
@@ -142,6 +189,9 @@ describe("single-call incident coordinator", () => {
   it("returns null on provider errors or malformed output so rules fallback can run", async () => {
     const providerFailure = vi.fn(async () => completionResponse("", 503));
     const malformed = vi.fn(async () => completionResponse("not valid JSON"));
+    const schemaIncomplete = vi.fn(async () =>
+      completionResponse(JSON.stringify({ confidence: "low" }))
+    );
     const common = {
       apiKey: "test-key",
       model: "test-model",
@@ -160,8 +210,15 @@ describe("single-call incident coordinator", () => {
         fetcher: malformed,
       })
     ).resolves.toBeNull();
+    await expect(
+      runSingleCallCoordinator(input, evidence, {
+        ...common,
+        fetcher: schemaIncomplete,
+      })
+    ).resolves.toBeNull();
     expect(providerFailure).toHaveBeenCalledTimes(1);
     expect(malformed).toHaveBeenCalledTimes(1);
+    expect(schemaIncomplete).toHaveBeenCalledTimes(1);
   });
 
   it("aborts a hung provider request at the configured timeout", async () => {

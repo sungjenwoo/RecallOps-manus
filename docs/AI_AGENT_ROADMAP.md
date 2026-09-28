@@ -1,6 +1,6 @@
 # RecallOps AI-Agent Roadmap
 
-**Status:** Implementation started — selected path: single on-demand coordinator with specialist prompt modules
+**Status:** Local implementation complete — live-provider performance and qualitative evaluation remain deployment-gated
 **Purpose:** Add feature-focused AI specialists to RecallOps without weakening its private-memory, evidence, or human-approval boundaries.
 
 ## Interpretation
@@ -68,10 +68,10 @@ Use **one server-side coordinator** as the only entry point. Treat specialists a
 - [x] Add server-only role/input/output types and a strict JSON schema for the combined specialist response.
 - [x] Keep authorization, private-bank selection, and input redaction in the existing server route; the coordinator owns the one Groq request, timeout, output validation, and fallback boundary.
 - [x] Keep role descriptions free of direct network clients and side effects; only the coordinator calls Groq.
-- [x] Add mocked tests for one-call execution, provider/malformed-output fallback, citation filtering, and unsafe action rejection; existing route tests retain user/bank isolation coverage.
+- [x] Add mocked tests for one-call execution, complete runtime-schema enforcement, provider/malformed-output fallback, citation filtering, and unsafe action/command rejection; existing route tests retain user/bank isolation coverage.
 - [x] Add `RECALLOPS_AGENT_COORDINATOR=false` as a kill switch to force the deterministic rules fallback without changing simulation labels.
 
-**Exit gate (verified locally):** TypeScript passes; 32 tests pass and 3 environment-dependent tests are skipped. Mocked checks cover one-call execution, timeout/no-retry, citation and unsafe-step filtering, and fallback; existing auth tests cover the protected route boundary.
+**Exit gate (verified locally):** TypeScript passes; 41 tests pass and 3 environment-dependent tests are skipped. Mocked checks cover one-call execution, full output-schema validation, timeout/no-retry, citation and unsafe-text/command filtering, fallback, and explicit confirmation before retention; existing auth tests cover the protected route boundary.
 
 ### Stage 2 — Pilot the Incident room
 
@@ -81,29 +81,32 @@ Use **one server-side coordinator** as the only entry point. Treat specialists a
 - [x] Show whether the response came from the single-call coordinator or rules fallback; show generated playbook steps only when the coordinator succeeded.
 - [ ] Compare latency/token use on all fictional scenarios after a Groq-enabled deployment is configured.
 
-**Exit gate:** no invalid evidence citations or unsafe plan items survive tests; provider failures use the safe fallback. Live latency and token acceptance is a rollout gate, not claimed from this credential-free Sandbox.
+**Exit gate (local):** mock tests cover citation/action filtering and fallback. Live latency, raw provider behavior, and semantic quality are not claimed from this credential-free Sandbox; the explicit evaluator is ready for the deployment gate.
 
 ### Stage 3 — Extend Memory bank and Playbooks specialists
 
 - [x] Add a cited Memory Scout summary and Playbook Composer sequence to the Incident room coordinator response; surface the sequence in Playbooks without another model call.
 - [x] Keep bank resolution server-side; the existing authorization and private-bank integration tests remain the boundary.
-- [ ] Consider a separate Outcome Curator draft only after user feedback; the existing human-confirmation-before-retain flow remains unchanged.
-- Add a “why this step?” explanation linked to memory/source IDs instead of exposing private internal reasoning.
+- [deferred] Do not add a separate Outcome Curator until user feedback shows a need; the existing human-confirmation-before-retain flow remains unchanged.
+- [x] Add an accessible “Why this step?” disclosure linked to validated memory/source IDs; generic steps are labelled as uncited and no private internal reasoning is exposed.
 
 **Exit gate:** reviewers can trace each recommendation to evidence or see that it is generic; no agent writes without confirmation.
 
 ### Stage 4 — Decide whether Activity needs an agent; keep Usage deterministic
 
-- Use feedback and test results to decide whether a per-user activity summary is valuable. Do not add an agent just to make every tab appear agent-powered.
-- Keep quota/anomaly thresholds as tested deterministic rules. If natural-language explanation is later requested, provide only minimal aggregate counts and preserve admin-only workspace scope.
-- Do not connect telemetry or ticketing as part of this stage. A source, field allowlist, permissions, and retention contract must be approved first.
+- [x] Decision: defer an Activity summarizer until users establish a need; do not add an agent merely to make every tab appear agent-powered.
+- [x] Keep quota/anomaly thresholds deterministic; do not send actor-level audit rows to an LLM.
+- [x] Do not connect telemetry or ticketing in the agent pilot; any later source needs an approved field allowlist, permissions, and retention contract.
 
 ### Stage 5 — Evaluate and roll out
 
-- Run a golden set built from the fictional seed scenarios plus edge cases: weak evidence, conflicting memories, secret-like input, empty recall, malformed model output, and provider timeout.
-- Measure p50/p95 latency, citation correctness, safe-check precision, fallback rate, and model calls/tokens per analysis.
-- Use `RECALLOPS_AGENT_COORDINATOR=false` as the rollback switch; compare specialist output with the deterministic rules baseline before considering any broader agent rollout.
-- Require zero invalid citations and zero unfiltered prohibited actions in the test set, no cross-account evidence, and no agent write without user confirmation.
+- [x] Add and run a mock-provider golden set covering all three fictional scenarios plus weak evidence, conflicting memories, secret-like input, and empty recall; existing coordinator tests cover malformed output and provider timeout.
+- [x] Add the guarded `pnpm eval:agents -- --confirm-live` runner for sequential synthetic-only calls; it reports p50/p95 latency, token usage, fallback rate, post-validation citation/safety results, and call count without persisting prompts or responses.
+- [ ] Run the live evaluator and manually review model quality after `GROQ_API_KEY` is configured in a secure deployment environment.
+- Live safe-check precision and comparison with the deterministic rules baseline still require human review after the deployment run; automated metrics do not claim semantic accuracy.
+- [x] Keep `RECALLOPS_AGENT_COORDINATOR=false` as the deterministic rollback switch.
+- [ ] Compare specialist output with the deterministic rules baseline after the live evaluation, before considering any broader rollout.
+- [x] Require no invalid citations or unsafe content in returned plans, preserve per-user bank isolation, and reject outcome retention without explicit human confirmation.
 - If the expanded single-call output does not improve quality enough to justify its token budget, keep the rules-only fallback enabled by setting the switch to `false`.
 
 ### Later, only if needed — Background agents
@@ -114,4 +117,4 @@ Consider queued/background agents only for a defined long-running task or extern
 
 The user selected **one single on-demand coordinator** for user-facing product specialists and approved reusing the existing Groq integration. Each analysis produces separate role outputs from at most one Groq request. `RECALLOPS_AGENT_COORDINATOR=false` forces rules-only behavior.
 
-The current Sandbox has no Groq/Hindsight/database configuration, so local fixture tests verify the coordinator contract and fallback, but cannot verify live provider behavior or latency. Do not provide provider secrets in chat; configure them in the deployment's secure environment.
+The current Sandbox has no Groq/Hindsight/database configuration, so local fixture tests verify the coordinator contract and fallback, but cannot verify live provider behavior or latency. Run `pnpm eval:agents` for a no-call dry run; after secure configuration, `pnpm eval:agents -- --confirm-live` sends seven sequential synthetic-only requests (up to 21,000 completion tokens) and prints aggregate metrics only. It neither calls Hindsight nor saves prompts/responses locally; the provider's own processing/retention is governed by its terms. Semantic quality still needs human review. Do not provide provider secrets in chat; configure them in the deployment's secure environment.

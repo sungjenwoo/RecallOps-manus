@@ -1690,11 +1690,25 @@ function PlaybooksPage({
                   </span>
                   <div className="min-w-0">
                     <strong className="text-sm text-slate-800">
-                      {step.title} <EvidenceRefs ids={step.evidenceIds} />
+                      {step.title}
                     </strong>
-                    <p className="mt-1 text-xs leading-relaxed text-slate-600">
-                      {step.rationale}
-                    </p>
+                    <details className="mt-1 text-xs">
+                      <summary className="w-fit cursor-pointer font-medium text-emerald-800">
+                        Why this step?
+                      </summary>
+                      <p className="mt-1 leading-relaxed text-slate-600">
+                        {step.rationale}
+                      </p>
+                      {step.evidenceIds.length > 0 ? (
+                        <div className="mt-1 text-slate-500">
+                          Evidence: <EvidenceRefs ids={step.evidenceIds} />
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-slate-500">
+                          Generic observational guidance; no memory citation.
+                        </p>
+                      )}
+                    </details>
                   </div>
                 </li>
               ))}

@@ -102,6 +102,17 @@ const browserMemory = z.object({
   text: z.string().min(1).max(1600),
 });
 
+export const saveOutcomeInputSchema = z.object({
+  incidentId: z.string().trim().min(2).max(80),
+  service: z.string().trim().min(2).max(100),
+  summary: z.string().trim().min(12).max(1800),
+  rootCause: z.string().trim().min(8).max(1000),
+  failedActions: z.string().trim().max(900).default(""),
+  successfulResolution: z.string().trim().min(8).max(1200),
+  followUp: z.string().trim().max(900).default(""),
+  confirmed: z.literal(true),
+});
+
 export const appRouter = router({
   system: systemRouter,
   auditUsage: auditUsageRouter,
@@ -155,18 +166,7 @@ export const appRouter = router({
       return seedHindsightBank(access?.bankId);
     }),
     saveOutcome: publicProcedure
-      .input(
-        z.object({
-          incidentId: z.string().trim().min(2).max(80),
-          service: z.string().trim().min(2).max(100),
-          summary: z.string().trim().min(12).max(1800),
-          rootCause: z.string().trim().min(8).max(1000),
-          failedActions: z.string().trim().max(900).default(""),
-          successfulResolution: z.string().trim().min(8).max(1200),
-          followUp: z.string().trim().max(900).default(""),
-          confirmed: z.literal(true),
-        })
-      )
+      .input(saveOutcomeInputSchema)
       .mutation(async ({ input, ctx }) => {
         const access = resolveLiveMemoryAccess(
           ctx.user,

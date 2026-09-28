@@ -22,7 +22,15 @@ const GROQ_CHAT_COMPLETIONS_URL =
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_COMPLETION_TOKENS = 3_000;
 const UNSAFE_ACTION_LANGUAGE =
-  /\b(restart|delete|drop|kill|flush|purge|scale|rollback|apply|update|write|terminate|reboot)\b/i;
+  /\b(restart|delete|drop|kill|flush|purge|scale|roll\s*back|apply|update|write|terminate|reboot)\b/i;
+const UNSAFE_COMMAND_LANGUAGE =
+  /\b(?:kubectl|helm|terraform|ansible|ssh|sudo|bash|sh|curl|wget|systemctl|docker|psql|mysql)\s+\S+|\b(?:run|execute)\s+(?:a\s+)?(?:shell|command|script)\b/i;
+
+export function hasUnsafeActionLanguage(text: string): boolean {
+  return (
+    UNSAFE_ACTION_LANGUAGE.test(text) || UNSAFE_COMMAND_LANGUAGE.test(text)
+  );
+}
 
 function parseJsonObject(text: string): Record<string, unknown> | null {
   const trimmed = text
@@ -46,6 +54,62 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
+}
+
+function hasExactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[]
+): boolean {
+  const keys = Object.keys(value);
+  return (
+    keys.length === expected.length &&
+    expected.every(key => Object.prototype.hasOwnProperty.call(value, key))
+  );
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(item => typeof item === "string");
+}
+
+function isPlanItemArray(value: unknown): boolean {
+  return (
+    Array.isArray(value) &&
+    value.every(row => {
+      const item = asRecord(row);
+      return (
+        item !== null &&
+        hasExactKeys(item, ["title", "rationale", "evidenceIds"]) &&
+        typeof item.title === "string" &&
+        typeof item.rationale === "string" &&
+        isStringArray(item.evidenceIds)
+      );
+    })
+  );
+}
+
+function hasCompleteCoordinatorShape(value: Record<string, unknown>): boolean {
+  const memoryBrief = asRecord(value.memoryBrief);
+  return (
+    hasExactKeys(value, [
+      "confidence",
+      "triageSummary",
+      "memoryBrief",
+      "hypotheses",
+      "readOnlyChecks",
+      "playbookSteps",
+    ]) &&
+    (value.confidence === "low" ||
+      value.confidence === "medium" ||
+      value.confidence === "high") &&
+    typeof value.triageSummary === "string" &&
+    memoryBrief !== null &&
+    hasExactKeys(memoryBrief, ["summary", "evidenceIds"]) &&
+    typeof memoryBrief.summary === "string" &&
+    isStringArray(memoryBrief.evidenceIds) &&
+    isPlanItemArray(value.hypotheses) &&
+    isPlanItemArray(value.readOnlyChecks) &&
+    isPlanItemArray(value.playbookSteps)
+  );
 }
 
 function validEvidenceIds(value: unknown, validIds: Set<string>): string[] {
@@ -79,7 +143,7 @@ function safePlanItems(
     if (
       !title ||
       !rationale ||
-      UNSAFE_ACTION_LANGUAGE.test(`${title} ${rationale}`)
+      hasUnsafeActionLanguage(`${title} ${rationale}`)
     ) {
       return [];
     }
@@ -98,7 +162,7 @@ export function validateCoordinatorOutput(
   evidence: Evidence[],
   sanitizeText: TextSanitizer
 ): IncidentPlan | null {
-  if (!parsed) return null;
+  if (!parsed || !hasCompleteCoordinatorShape(parsed)) return null;
   const validIds = new Set(evidence.map(item => item.id));
   const rawMemoryBrief = asRecord(parsed.memoryBrief);
   const memoryEvidenceIds = validEvidenceIds(
@@ -109,19 +173,23 @@ export function validateCoordinatorOutput(
     memoryEvidenceIds.length > 0 && typeof rawMemoryBrief?.summary === "string"
       ? sanitizeText(rawMemoryBrief.summary, 360)
       : "";
+  const safeMemorySummary = hasUnsafeActionLanguage(memorySummary)
+    ? ""
+    : memorySummary;
+  const triageSummary =
+    typeof parsed.triageSummary === "string"
+      ? sanitizeText(parsed.triageSummary, 360)
+      : "";
 
   return {
     confidence:
       parsed.confidence === "high" || parsed.confidence === "medium"
         ? parsed.confidence
         : "low",
-    triageSummary:
-      typeof parsed.triageSummary === "string"
-        ? sanitizeText(parsed.triageSummary, 360)
-        : "",
+    triageSummary: hasUnsafeActionLanguage(triageSummary) ? "" : triageSummary,
     memoryBrief: {
-      summary: memorySummary,
-      evidenceIds: memorySummary ? memoryEvidenceIds : [],
+      summary: safeMemorySummary,
+      evidenceIds: safeMemorySummary ? memoryEvidenceIds : [],
     },
     hypotheses: safePlanItems(parsed.hypotheses, validIds, sanitizeText),
     readOnlyChecks: safePlanItems(

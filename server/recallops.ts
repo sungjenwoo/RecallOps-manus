@@ -1,36 +1,22 @@
 import { HindsightClient } from "@vectorize-io/hindsight-client";
 import { DEMO_INCIDENTS } from "../shared/incidentSeeds";
 import { createHmac } from "node:crypto";
+import { runSingleCallCoordinator } from "./agents/incidentCoordinator";
+import {
+  SPECIALIST_ROLES,
+  type AnalyzeInput,
+  type Evidence,
+  type IncidentPlan,
+  type PlanItem,
+} from "./agents/contracts";
 import { ENV } from "./_core/env";
 
-export type Evidence = {
-  id: string;
-  text: string;
-  source: string;
-  kind: "hindsight" | "synthetic" | "browser-memory";
-};
-
-export type PlanItem = {
-  title: string;
-  rationale: string;
-  evidenceIds: string[];
-};
-
-export type IncidentPlan = {
-  confidence: "low" | "medium" | "high";
-  hypotheses: PlanItem[];
-  readOnlyChecks: PlanItem[];
-  caution: string;
-};
-
-export type AnalyzeInput = {
-  service: string;
-  environment: string;
-  summary: string;
-  recentChange: string;
-  impact: string;
-  browserMemories: Array<{ id: string; text: string }>;
-};
+export type {
+  AnalyzeInput,
+  Evidence,
+  IncidentPlan,
+  PlanItem,
+} from "./agents/contracts";
 
 const HINDSIGHT_URL = (
   process.env.HINDSIGHT_API_URL ||
@@ -40,12 +26,15 @@ const HINDSIGHT_URL = (
 const HINDSIGHT_KEY = process.env.HINDSIGHT_API_KEY || "";
 const GROQ_KEY = process.env.GROQ_API_KEY || "";
 const GROQ_MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
+const SPECIALIST_COORDINATOR_ENABLED =
+  process.env.RECALLOPS_AGENT_COORDINATOR !== "false";
 
 export function integrationStatus() {
   return {
     hindsightConfigured: Boolean(HINDSIGHT_URL),
     hindsightAuthConfigured: Boolean(HINDSIGHT_KEY),
-    groqConfigured: Boolean(GROQ_KEY),
+    groqConfigured: Boolean(GROQ_KEY.trim()),
+    specialistCoordinatorEnabled: SPECIALIST_COORDINATOR_ENABLED,
     authRequired: Boolean(HINDSIGHT_URL),
     mode: HINDSIGHT_URL ? ("live" as const) : ("simulation" as const),
   };
@@ -317,8 +306,16 @@ function deterministicPlan(evidence: Evidence[]): IncidentPlan {
     .slice(0, 3);
   return {
     confidence: evidence.length > 0 ? "medium" : "low",
+    triageSummary: "",
+    memoryBrief: { summary: "", evidenceIds: [] },
     hypotheses: uniqueHypotheses,
     readOnlyChecks: checks
+      .filter(
+        (item, index, items) =>
+          items.findIndex(candidate => candidate.title === item.title) === index
+      )
+      .slice(0, 4),
+    playbookSteps: checks
       .filter(
         (item, index, items) =>
           items.findIndex(candidate => candidate.title === item.title) === index
@@ -327,180 +324,6 @@ function deterministicPlan(evidence: Evidence[]): IncidentPlan {
     caution:
       "Historical similarity is evidence to investigate—not proof of the current root cause. RecallOps never executes a remediation.",
   };
-}
-
-function parseJsonObject(text: string): Record<string, unknown> | null {
-  const trimmed = text
-    .trim()
-    .replace(/^```(?:json)?\s*/i, "")
-    .replace(/\s*```$/, "");
-  const start = trimmed.indexOf("{");
-  const end = trimmed.lastIndexOf("}");
-  if (start < 0 || end <= start) return null;
-  try {
-    return JSON.parse(trimmed.slice(start, end + 1)) as Record<string, unknown>;
-  } catch {
-    return null;
-  }
-}
-
-function safeModelPlan(
-  parsed: Record<string, unknown> | null,
-  evidence: Evidence[]
-): IncidentPlan | null {
-  if (!parsed) return null;
-  const validIds = new Set(evidence.map(item => item.id));
-  const risky =
-    /\b(restart|delete|drop|kill|flush|purge|scale|rollback|apply|update|write|terminate|reboot)\b/i;
-  const toItems = (value: unknown, allowHypothesis: boolean): PlanItem[] => {
-    if (!Array.isArray(value)) return [];
-    return value.slice(0, 4).flatMap(row => {
-      if (!row || typeof row !== "object") return [];
-      const item = row as Record<string, unknown>;
-      const title =
-        typeof item.title === "string" ? cleanText(item.title, 160) : "";
-      const rationale =
-        typeof item.rationale === "string"
-          ? cleanText(item.rationale, 420)
-          : "";
-      const evidenceIds = Array.isArray(item.evidenceIds)
-        ? item.evidenceIds
-            .filter(
-              (id): id is string => typeof id === "string" && validIds.has(id)
-            )
-            .slice(0, 4)
-        : [];
-      if (
-        !title ||
-        !rationale ||
-        (!allowHypothesis && risky.test(`${title} ${rationale}`))
-      )
-        return [];
-      return [{ title, rationale, evidenceIds }];
-    });
-  };
-  const confidence =
-    parsed.confidence === "high" || parsed.confidence === "medium"
-      ? parsed.confidence
-      : "low";
-  return {
-    confidence,
-    hypotheses: toItems(parsed.hypotheses, false),
-    readOnlyChecks: toItems(parsed.readOnlyChecks, false),
-    caution:
-      "AI-generated ideas are hypotheses only. Verify current telemetry; no remediation is run by this app.",
-  };
-}
-
-async function groqPlan(input: AnalyzeInput, evidence: Evidence[]) {
-  if (!GROQ_KEY) return null;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30_000);
-  try {
-    const response = await fetch(
-      "https://api.groq.com/openai/v1/chat/completions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${GROQ_KEY}`,
-          "Content-Type": "application/json",
-        },
-        signal: controller.signal,
-        body: JSON.stringify({
-          model: GROQ_MODEL,
-          temperature: 0.15,
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: "recallops_incident_plan",
-              strict: true,
-              schema: {
-                type: "object",
-                properties: {
-                  confidence: {
-                    type: "string",
-                    enum: ["low", "medium", "high"],
-                  },
-                  hypotheses: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        title: { type: "string" },
-                        rationale: { type: "string" },
-                        evidenceIds: {
-                          type: "array",
-                          items: { type: "string" },
-                        },
-                      },
-                      required: ["title", "rationale", "evidenceIds"],
-                      additionalProperties: false,
-                    },
-                  },
-                  readOnlyChecks: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        title: { type: "string" },
-                        rationale: { type: "string" },
-                        evidenceIds: {
-                          type: "array",
-                          items: { type: "string" },
-                        },
-                      },
-                      required: ["title", "rationale", "evidenceIds"],
-                      additionalProperties: false,
-                    },
-                  },
-                  caution: { type: "string" },
-                },
-                required: [
-                  "confidence",
-                  "hypotheses",
-                  "readOnlyChecks",
-                  "caution",
-                ],
-                additionalProperties: false,
-              },
-            },
-          },
-          messages: [
-            {
-              role: "system",
-              content:
-                "You are RecallOps, an advisory incident-response assistant for on-call engineers. Use only the incident and evidence supplied. Prior memories are patterns, never proof. Return valid JSON with confidence (low|medium|high), hypotheses [{title,rationale,evidenceIds}], readOnlyChecks [{title,rationale,evidenceIds}], and caution. Checks must be read-only observational checks only: no shell commands, no restarts, rollbacks, writes, deletes, scaling, credential values, or automatic actions. If evidence is weak, say so and lower confidence. Cite only supplied evidence IDs.",
-            },
-            {
-              role: "user",
-              content: JSON.stringify({
-                incident: {
-                  service: input.service,
-                  environment: input.environment,
-                  summary: cleanText(input.summary),
-                  recentChange: cleanText(input.recentChange),
-                  impact: cleanText(input.impact),
-                },
-                evidence: evidence.map(({ id, text }) => ({ id, text })),
-              }),
-            },
-          ],
-        }),
-      }
-    );
-    if (!response.ok) return null;
-    const payload = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-    const content = payload.choices?.[0]?.message?.content;
-    return typeof content === "string"
-      ? safeModelPlan(parseJsonObject(content), evidence)
-      : null;
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 export async function analyzeIncident(input: AnalyzeInput, bankId?: string) {
@@ -566,7 +389,15 @@ export async function analyzeIncident(input: AnalyzeInput, bankId?: string) {
     );
   });
   evidence = [...evidence, ...relevantBrowserMemories].slice(0, 10);
-  const modelPlan = await groqPlan(safeInput, evidence);
+  const modelPlan = SPECIALIST_COORDINATOR_ENABLED
+    ? await runSingleCallCoordinator(safeInput, evidence, {
+        apiKey: GROQ_KEY,
+        model: GROQ_MODEL,
+        sanitizeText: cleanText,
+      })
+    : null;
+  const modelCalls: 0 | 1 =
+    SPECIALIST_COORDINATOR_ENABLED && GROQ_KEY.trim() ? 1 : 0;
   const plan = modelPlan || deterministicPlan(evidence);
   const baseline = deterministicPlan([]);
   return {
@@ -579,10 +410,21 @@ export async function analyzeIncident(input: AnalyzeInput, bankId?: string) {
     evidence,
     plan,
     baseline,
+    agentRun: modelPlan
+      ? {
+          mode: "single-call" as const,
+          roles: [...SPECIALIST_ROLES],
+          modelCalls: 1,
+        }
+      : { mode: "rules-fallback" as const, roles: [], modelCalls },
     memoryMode,
     modelSource: modelPlan
-      ? `Groq · ${GROQ_MODEL}`
-      : "Evidence-guided rules · no model key required",
+      ? `Groq · ${GROQ_MODEL} · single-call coordinator`
+      : SPECIALIST_COORDINATOR_ENABLED
+        ? GROQ_KEY.trim()
+          ? "Evidence-guided rules · one Groq call failed or was rejected"
+          : "Evidence-guided rules · no model key configured"
+        : "Evidence-guided rules · specialist coordinator disabled",
     memoryNote,
     redactionApplied: [
       input.service,

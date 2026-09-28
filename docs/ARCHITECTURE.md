@@ -18,8 +18,8 @@ sequenceDiagram
   S->>D: Record pseudonymous action metadata
   S->>H: Ensure user's isolated bank, then recall
   H-->>S: Ranked memory facts
-  S->>G: Incident + retrieved evidence IDs (optional)
-  G-->>S: Hypotheses and read-only checks
+  S->>G: Sanitized incident + retrieved evidence (one request)
+  G-->>S: Triage, memory brief, checks, playbook sequence
   S-->>UI: Plan + inspectable evidence + mode
   E->>UI: Verify outcome and confirm
   UI->>S: Human-confirmed postmortem
@@ -42,7 +42,13 @@ The **Sign in for your private pack** action first records a one-use timestamp i
 - **Managed MySQL:** stores the existing OAuth user records, a rolling request counter keyed by pseudonymous actor hash, and minimal audit metadata. Live requests are limited to 30 per user per minute and fail closed if durable controls are unavailable.
 - **Audit retention:** logs contain only a pseudonymous actor hash, action, fixed target label, and timestamps. They never contain incident text, email, OAuth IDs, API keys, or provider response bodies. Expired audit metadata is purged on the next audit write; retention is 30 days.
 - **Hindsight:** one isolated bank per authenticated user. Bank setup and all recall/retain operations are server-side. Provider-side memory retention is controlled by the Hindsight deployment and is separate from the app audit TTL.
-- **Groq:** optional generation from the current incident plus retrieved evidence. The model is instructed to produce hypotheses and read-only checks only. Output is validated, unsafe action-like recommendations are dropped, and evidence IDs must match the retrieved evidence set.
+- **Groq:** optional generation from the current incident plus retrieved evidence. One bounded model request coordinates four logical roles: incident triage, memory scouting, read-only planning, and playbook composition. It has no tools, direct provider clients, or independent background workers. Output is validated, unsafe action-like plan items are dropped, and evidence IDs must match the retrieved evidence set.
+
+## Single-call specialist coordinator
+
+The existing authenticated analysis request remains the only entry point. It applies the current request budget, redacts the incident fields, resolves the signed-in user's Hindsight bank, and retrieves evidence once. When `GROQ_API_KEY` is configured and `RECALLOPS_AGENT_COORDINATOR` is not `false`, the server sends the sanitized incident and current evidence to Groq in **one** strict-schema model request, capped at 3,000 generated tokens. The response has separate sections for Incident Triage, Memory Scout, Read-only Planner, and Playbook Composer; the latter is also shown in the Playbooks view without another model call. There are no parallel agent requests, retries, background jobs, or extra provider credentials.
+
+The server rejects citations outside that exact evidence set, limits output lengths, removes plan items with unsafe action language, and replaces model-generated cautions with a fixed advisory warning. Memory summaries are suppressed unless at least one valid supplied evidence ID is cited. If the feature flag is off, the key is missing, the provider fails, or the response is invalid, the existing evidence-guided rules path is returned and labelled as fallback. No intermediate reasoning or coordinator prompt is persisted in the audit database. Usage and audit alerts continue to use deterministic rules and metadata only.
 
 Keep `JWT_SECRET` stable. Rotating it changes the HMAC-derived bank ID; perform a deliberate bank migration before rotating the secret if access to existing memories must be preserved.
 
@@ -68,3 +74,4 @@ Any first connector should be read-only and limited to a documented allowlist: s
 4. Synthetic demo content is labelled separately from live Hindsight memories.
 5. Common secret patterns are redacted before external calls, but redaction is not a guarantee; use synthetic data in the public demo.
 6. Browser-local simulation outcomes are not shared across users and never influence live Hindsight analyses.
+7. Specialist roles are coordinated in one on-demand model request; they do not run separate agents, background jobs, or autonomous tools.

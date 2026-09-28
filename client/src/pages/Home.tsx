@@ -57,6 +57,11 @@ type Evidence = {
   kind: "hindsight" | "synthetic" | "browser-memory";
 };
 type PlanItem = { title: string; rationale: string; evidenceIds: string[] };
+type SpecialistRole =
+  | "incident-triage"
+  | "memory-scout"
+  | "read-only-planner"
+  | "playbook-composer";
 type AnalysisResult = {
   id: string;
   createdAt: number;
@@ -67,8 +72,11 @@ type AnalysisResult = {
   evidence: Evidence[];
   plan: {
     confidence: "low" | "medium" | "high";
+    triageSummary: string;
+    memoryBrief: { summary: string; evidenceIds: string[] };
     hypotheses: PlanItem[];
     readOnlyChecks: PlanItem[];
+    playbookSteps: PlanItem[];
     caution: string;
   };
   baseline: {
@@ -76,6 +84,11 @@ type AnalysisResult = {
     hypotheses: PlanItem[];
     readOnlyChecks: PlanItem[];
     caution: string;
+  };
+  agentRun: {
+    mode: "single-call" | "rules-fallback";
+    roles: SpecialistRole[];
+    modelCalls: 0 | 1;
   };
   memoryMode: "hindsight" | "simulation" | "fallback";
   modelSource: string;
@@ -282,7 +295,7 @@ export default function Home() {
       addActivity({
         id: result.id,
         title: `Analysis started · ${service}`,
-        detail: `${result.evidence.length} evidence items · ${result.memoryMode === "hindsight" ? "Hindsight recall" : result.memoryMode === "fallback" ? "fallback evidence" : "simulation memory"}`,
+        detail: `${result.evidence.length} evidence items · ${result.memoryMode === "hindsight" ? "Hindsight recall" : result.memoryMode === "fallback" ? "fallback evidence" : "simulation memory"} · ${result.agentRun.mode === "single-call" ? `${result.agentRun.roles.length} specialist roles / ${result.agentRun.modelCalls} model call` : result.agentRun.modelCalls === 1 ? "rules fallback / one model call not accepted" : "rules fallback / no model call"}`,
         createdAt: Date.now(),
         kind: "analysis",
       });
@@ -960,6 +973,7 @@ export default function Home() {
           )}
           {section === "playbooks" && (
             <PlaybooksPage
+              analysis={analysis}
               onTryScenario={id => {
                 selectScenario(id);
                 navAction("incident");
@@ -1088,11 +1102,25 @@ function AnalysisView({
           <div className="panel-kicker">02 · INVESTIGATE</div>
           <h3>Evidence-informed plan</h3>
         </div>
-        <span
-          className={`confidence-chip confidence-${analysis.plan.confidence}`}
-        >
-          {analysis.plan.confidence} confidence
-        </span>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <span className="quiet-chip">
+            {analysis.agentRun.mode === "single-call" ? (
+              <Sparkles className="h-3.5 w-3.5" />
+            ) : (
+              <CircleHelp className="h-3.5 w-3.5" />
+            )}
+            {analysis.agentRun.mode === "single-call"
+              ? `${analysis.agentRun.roles.length} roles · 1 model call`
+              : analysis.agentRun.modelCalls === 1
+                ? "Rules fallback · 1 model call not accepted"
+                : "Rules fallback · no model call"}
+          </span>
+          <span
+            className={`confidence-chip confidence-${analysis.plan.confidence}`}
+          >
+            {analysis.plan.confidence} confidence
+          </span>
+        </div>
       </div>
       <div
         className={`memory-source-banner memory-source-${analysis.memoryMode}`}
@@ -1113,6 +1141,24 @@ function AnalysisView({
         >
           <CircleHelp className="h-3.5 w-3.5 shrink-0" />
           {analysis.memoryNote}
+        </div>
+      )}
+      {analysis.plan.triageSummary && (
+        <div className="memory-note">
+          <Activity className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            <b>Incident Triage:</b> {analysis.plan.triageSummary}
+          </span>
+        </div>
+      )}
+      {analysis.plan.memoryBrief.summary && (
+        <div className="memory-note">
+          <Brain className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            <b>Memory Scout · pattern, not proof:</b>{" "}
+            {analysis.plan.memoryBrief.summary}{" "}
+            <EvidenceRefs ids={analysis.plan.memoryBrief.evidenceIds} />
+          </span>
         </div>
       )}
       {analysis.redactionApplied && (
@@ -1395,9 +1441,11 @@ function MemoryPage({
             Hindsight is the experience layer—not model retraining.
           </strong>
           <p>
-            RecallOps retrieves relevant past incidents, gives them to the
-            planner with source IDs, and retains verified postmortems after a
-            human confirms the outcome. It never treats similarity as proof.
+            In live mode, RecallOps retrieves from the signed-in user's private
+            bank; simulation uses fictional examples. One coordinator request
+            can return triage, cited memory, read-only checks, and playbook
+            steps. Only human-confirmed outcomes are retained, and similarity is
+            never proof.
           </p>
         </div>
         <div className="callout-flow">
@@ -1554,8 +1602,10 @@ function MemoryPage({
 }
 
 function PlaybooksPage({
+  analysis,
   onTryScenario,
 }: {
+  analysis: AnalysisResult | null;
   onTryScenario: (id: string) => void;
 }) {
   const items = [
@@ -1612,6 +1662,59 @@ function PlaybooksPage({
           telemetry and your team's runbook before taking action.
         </span>
       </div>
+      {analysis?.agentRun.mode === "single-call" &&
+        analysis.plan.playbookSteps.length > 0 && (
+          <section className="mb-5 rounded-xl border border-emerald-100 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="panel-kicker">
+                  LATEST INCIDENT · SINGLE-CALL COORDINATOR
+                </div>
+                <h2 className="mt-1 font-semibold text-slate-800">
+                  Read-only sequence for {analysis.service}
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  {analysis.plan.triageSummary || analysis.summary}
+                </p>
+              </div>
+              <span className="quiet-chip">
+                <ShieldCheck className="h-3.5 w-3.5" />
+                Human decides · no actions run
+              </span>
+            </div>
+            <ol className="divide-y divide-slate-100">
+              {analysis.plan.playbookSteps.map((step, index) => (
+                <li className="flex gap-3 py-3" key={`${step.title}-${index}`}>
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-emerald-50 text-xs font-semibold text-emerald-800">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <strong className="text-sm text-slate-800">
+                      {step.title}
+                    </strong>
+                    <details className="mt-1 text-xs">
+                      <summary className="w-fit cursor-pointer font-medium text-emerald-800">
+                        Why this step?
+                      </summary>
+                      <p className="mt-1 leading-relaxed text-slate-600">
+                        {step.rationale}
+                      </p>
+                      {step.evidenceIds.length > 0 ? (
+                        <div className="mt-1 text-slate-500">
+                          Evidence: <EvidenceRefs ids={step.evidenceIds} />
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-slate-500">
+                          Generic observational guidance; no memory citation.
+                        </p>
+                      )}
+                    </details>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
       <div className="playbook-grid">
         {items.map((item, index) => (
           <article

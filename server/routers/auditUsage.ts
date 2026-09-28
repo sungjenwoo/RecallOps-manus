@@ -37,8 +37,8 @@ export const auditUsageRouter = router({
           range: input.range,
           action: input.action,
         });
-      } catch (error) {
-        console.error("[AuditUsage] Dashboard query failed:", error);
+      } catch {
+        console.error("[AuditUsage] Dashboard query failed");
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Audit and usage data is temporarily unavailable.",

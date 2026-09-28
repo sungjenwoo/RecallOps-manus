@@ -31,6 +31,10 @@ sequenceDiagram
 
 If `HINDSIGHT_API_URL` is unset, the app selects an explicitly labelled public simulation path: fictional seed examples plus browser-local outcome storage. In live mode, sign-in is mandatory; anonymous requests cannot access, seed, analyze against, or retain into Hindsight. Each account receives a stable opaque bank ID derived with HMAC from its OAuth identity and the server-side `JWT_SECRET`. The ID and raw OAuth identity are not exposed to the browser or stored in the app's audit log.
 
+## Sign-in and explicit seed demonstration
+
+The **Sign in for your private pack** action first records a one-use timestamp in tab-scoped session storage, then starts the existing Manus OAuth flow. After the callback returns, the client waits for both authenticated user state and live Hindsight configuration, consumes the marker once (10-minute expiry), and invokes the protected seed route. Generic sign-in does not set this marker and never seeds automatically. The server derives the user's private bank, enforces durable limits, and upserts the clearly synthetic records using stable document IDs. On success, the client opens **Usage & audit** so the user can inspect the live seed action. The marker contains no account, incident, or provider data. If storage, OAuth, database, or Hindsight is unavailable, the seed is not represented as a successful live write.
+
 ## Trust boundaries and persistence
 
 - **Browser:** incident form, evidence viewer, human confirmation, and simulation-only local storage. The browser cannot choose a bank ID.
@@ -47,6 +51,14 @@ Keep `JWT_SECRET` stable. Rotating it changes the HMAC-derived bank ID; perform 
 The protected dashboard reads only the pseudonymous audit and rolling-limit tables. A normal account is scoped to its own HMAC actor hash. Only users with the server-side `admin` role may request workspace scope; those rows use a truncated pseudonymous label and never resolve to names, email addresses, or OAuth IDs. Date-range and action filters apply to event totals, trends, and recent rows. CSV export is generated in the browser from the same already-authorized response.
 
 The dashboard reports accepted live memory operations from audit events separately from the rolling request counter, which includes over-limit attempts. Simulation activity is local and is not represented as live API usage. Recent event rows expose only fixed target labels and timestamps; they expire after 30 days under the existing audit policy.
+
+### Admin usage alerts
+
+Personal-scope responses include quota alerts for the requesting account only: a warning at 24 of 30 requests in the current per-account minute and a critical alert above 30. The backend matches the authenticated actor hash before generating that private alert and never returns peer counters in personal scope. Admin-authorized workspace responses show the same thresholds with pseudonymous labels. An unusual-usage warning requires at least four active accounts and flags an account at `max(10, 3 × median(other active accounts))` requests. Alerts are recalculated from existing current-minute rate-limit rows on each dashboard refresh; no alert record, identity lookup, or external notification is created. The spike rule is a review heuristic, not a security verdict.
+
+## Proposed telemetry/ticketing scope (not connected)
+
+Any first connector should be read-only and limited to a documented allowlist: stable source record ID, service/environment label, severity, event timestamp, short sanitized symptom summary, and a change or runbook reference. Raw logs/traces, request/response bodies, attachments, credentials, personal data, and customer identifiers are out of scope. Source payloads should be transient for the current investigation and not copied to the audit tables. Only a human-confirmed, sanitized outcome may be retained in a user's private Hindsight bank. App audit metadata keeps its existing 30-day expiry; source-provider retention and Hindsight memory expiry are separate controls that must be reviewed for the selected provider before connection. No ticket writes or remediation are in scope.
 
 ## Deliberate constraints
 

@@ -4,6 +4,7 @@ import {
   analyzeIncident,
   integrationStatus,
   redactSecrets,
+  seedHindsightBank,
 } from "./recallops";
 
 describe("RecallOps incident safety", () => {
@@ -19,6 +20,16 @@ describe("RecallOps incident safety", () => {
     expect(status.authRequired).toBe(status.hindsightConfigured);
     expect(status).not.toHaveProperty("bankId");
     expect(status).not.toHaveProperty("apiKey");
+  });
+
+  it("does not claim a fictional pack was persisted when Hindsight is unconfigured", async () => {
+    if (integrationStatus().hindsightConfigured) return;
+
+    await expect(seedHindsightBank()).resolves.toMatchObject({
+      saved: false,
+      mode: "simulation",
+      count: expect.any(Number),
+    });
   });
 
   it("authenticates configured providers using read-only endpoints", async () => {

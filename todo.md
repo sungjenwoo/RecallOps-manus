@@ -4,23 +4,23 @@
 
 - [x] Reviewed the hackathon brief and supplied Hindsight project notes.
 - [x] Built a polished responsive incident workspace with three clearly fictional scenarios.
-- [x] Implemented service-relevant citations, cautious hypotheses, read-only checks, confidence, and a with/without-memory comparison.
-- [x] Implemented server-side Hindsight recall/retain and an optional Groq planner using strict JSON Schema, evidence-ID validation, and a rules fallback.
-- [x] Added human-confirmed outcome capture, failed-fix history, secret redaction, and a bounded demo request limiter.
-- [x] Implemented simulation-only browser memory and clear distinctions between local and live memory.
-- [x] Added memory, playbook, and activity views; architecture/provider references; and article/social/demo-video drafts.
-- [x] Added tests for provider status, key redaction, scenario-specific synthetic recall, safety labels, and request limits.
-- [x] Added route-level code splitting; the final Vite build no longer reports an oversized chunk.
-- [x] Ran `pnpm check`, `pnpm test` (7 passing), and `pnpm build`.
-- [x] Inspected desktop and mobile layouts and exercised the save-then-recall loop in simulation mode.
-- [x] Stored Hindsight and Groq values in WebDev project secrets, not source control.
-- [x] Ran authenticated, read-only GET checks against the configured Hindsight bank-list endpoint and Groq models endpoint; both returned HTTP 200. Secret values and response bodies were not printed.
-- [x] Pushed the source and documentation to `tanveerpasha6381-hub/RecallOps-manus` on `main`.
+- [x] Implemented source-cited hypotheses, read-only checks, confidence, and with/without-memory comparison.
+- [x] Implemented server-side Hindsight recall/retain, optional strict-JSON Groq planning, evidence-ID validation, and a deterministic fallback.
+- [x] Added human-confirmed outcome capture, secret redaction, simulation-only local memory, and clear mode labels.
+- [x] Added stable HMAC-derived private Hindsight bank IDs per authenticated Manus user; live routes reject anonymous callers, and bank IDs never reach the browser.
+- [x] Added persistent 30-request-per-minute user limits that fail closed when storage is unavailable.
+- [x] Added metadata-only audit records with pseudonymous actors and 30-day expiration; no incident text, OAuth IDs, or provider secrets are logged.
+- [x] Added memory, playbook, and activity views; private-memory sign-in messaging; architecture/provider references; and submission drafts.
+- [x] Added auth/bank-separation tests and database-backed tests for durable limits, window reset, audit metadata, and retention.
+- [x] Applied the additive MySQL migration for `recallops_rate_limits` and `recallops_audit_events`.
+- [x] Ran `pnpm check`, `pnpm test` (13 passing in WebDev; 11 passing and 2 database-only tests skipped in the credential-free GitHub clone), and `pnpm build`; no oversized-chunk warning.
+- [x] Inspected desktop and phone layouts.
+- [x] Stored Hindsight/Groq secrets in WebDev project secrets; authenticated read-only provider checks passed without logging values or response bodies.
+- [x] With explicit approval, retained three fictional records in the legacy shared demo bank and ran a synthetic Groq-backed analysis. That bank is no longer used by the private-bank app; its records were not deleted.
+- [x] GitHub handoff targets the user-selected `tanveerpasha6381-hub/RecallOps-manus` repository on `main`.
 
-## Awaiting explicit approval or a production decision
+## Awaiting destination-specific confirmation
 
-- [ ] Run one Groq planner request using only the fictional checkout scenario. The key is configured, but the user authorized read-only provider checks only.
-- [ ] Write the synthetic seed pack to Hindsight and run a live recall/retain loop. No incident records were written because the user explicitly limited approval to read-only checks.
-- [ ] Before production use, choose the tenant model and add authentication, tenant-scoped Hindsight authorization, and audit/retention controls.
-- [ ] Replace process-local demo throttling with durable abuse controls before opening live memory to a broad public audience.
-- [ ] Connect real telemetry or ticketing only after the data-access, privacy, and retention model is approved.
+- [ ] Seed the exact three fictional postmortems into the currently signed-in user's newly derived private bank and run one checkout recall/plan. The previous write approval named the legacy shared demo bank, so this new destination has not been written.
+
+No real telemetry or ticketing system is connected. The app uses fictional training data and makes no production changes; adding an operational connector requires a separate data-access and retention decision.

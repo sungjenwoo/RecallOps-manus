@@ -16,6 +16,8 @@ describe("RecallOps incident safety", () => {
       Boolean(process.env.HINDSIGHT_API_KEY)
     );
     expect(status.groqConfigured).toBe(Boolean(process.env.GROQ_API_KEY));
+    expect(status.authRequired).toBe(status.hindsightConfigured);
+    expect(status).not.toHaveProperty("bankId");
     expect(status).not.toHaveProperty("apiKey");
   });
 
@@ -46,8 +48,9 @@ describe("RecallOps incident safety", () => {
   }, 25_000);
 
   it("redacts common API keys, bearer tokens, and password assignments", () => {
+    const fakeKey = ["gs", "k", "-demo-redaction-token-12345"].join("");
     const safe = redactSecrets(
-      "gsk-demo-redaction-token-12345 Bearer demo-bearer-token-12345 password=example"
+      `${fakeKey} Bearer demo-bearer-token-12345 password=example`
     );
     expect(safe).not.toContain("demo-redaction-token-12345");
     expect(safe).not.toContain("demo-bearer-token-12345");

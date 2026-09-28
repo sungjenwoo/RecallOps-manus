@@ -19,6 +19,13 @@ The repository already has useful building blocks:
 
 The current Sandbox has no Groq, Hindsight, or database runtime configuration. Until a deployment is configured, agent behavior can be tested with fixtures and mocks, but not claimed as live.
 
+## Final security and audit status
+
+- Signed sessions are bound to the RecallOps app ID; raw provider, OAuth, database, and user error details are not written to server logs or returned in LLM failure messages.
+- The unused unauthenticated storage-signing route, orphaned upload helpers, browser debug-log collector, and unconfigured analytics tag are removed. Request bodies are limited to 1 MB.
+- `pnpm audit --audit-level=low` reports no known vulnerabilities. Production-mode smoke testing with Hindsight and Groq keys unset confirmed the app serves in simulation mode.
+- Live OAuth, database-backed tests, private-bank writes, and provider-quality/latency measurements remain deployment-gated; no live provider calls or memory writes were made in this Sandbox.
+
 ## Architecture choices
 
 | Approach                                           | Tradeoffs                                                                                                                                                                                                                                                                                                                | Cost                                                                                 | Setup Complexity |
@@ -71,7 +78,7 @@ Use **one server-side coordinator** as the only entry point. Treat specialists a
 - [x] Add mocked tests for one-call execution, complete runtime-schema enforcement, provider/malformed-output fallback, citation filtering, and unsafe action/command rejection; existing route tests retain user/bank isolation coverage.
 - [x] Add `RECALLOPS_AGENT_COORDINATOR=false` as a kill switch to force the deterministic rules fallback without changing simulation labels.
 
-**Exit gate (verified locally):** TypeScript passes; 41 tests pass and 3 environment-dependent tests are skipped. Mocked checks cover one-call execution, full output-schema validation, timeout/no-retry, citation and unsafe-text/command filtering, fallback, and explicit confirmation before retention; existing auth tests cover the protected route boundary.
+**Exit gate (verified locally):** TypeScript passes; 42 tests pass and 3 environment-dependent tests are skipped. Mocked checks cover one-call execution, full output-schema validation, timeout/no-retry, citation and unsafe-text/command filtering, fallback, app-bound sessions, and explicit confirmation before retention; existing auth tests cover the protected route boundary.
 
 ### Stage 2 — Pilot the Incident room
 

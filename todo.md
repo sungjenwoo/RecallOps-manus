@@ -8,6 +8,8 @@
 - [x] Added human-confirmed outcome capture, secret redaction, simulation-only local memory, and distinct live/simulation labels.
 - [x] Added private per-user Hindsight banks, mandatory authentication for live operations, persistent per-user request limits, and pseudonymous audit events with 30-day retention.
 - [x] Built an interactive **Usage & audit** dashboard with time/action filters, live API trends, rolling request-limit usage, recent audit records and expiry, CSV export, user-personal view, and pseudonymous admin workspace view.
+- [x] Added admin-only in-app alerts for 80% request-limit use, limit exceedance, and unusual request spikes; alerts use existing pseudonymous counters and are not separately retained or externally delivered.
+- [x] Defined a proposed read-only telemetry/ticketing allowlist and retention boundary before any operational connector is enabled.
 - [x] Added a no-login synthetic preview at `/?section=usage&sample=1`; preview is generated in the browser, never queries/writes live audit data, and is clearly marked fictional.
 - [x] Verified the synthetic action filter shows only the matching event rows while period-wide KPIs remain labeled; verified responsive desktop and phone layouts.
 - [x] Applied the additive MySQL indexes for audit-time and actor queries; database-backed request-limit and retention tests passed.
@@ -19,4 +21,4 @@
 
 ## Scope note
 
-No telemetry or ticketing provider is connected, and the app makes no production changes. Operational integrations require a separate data-access, privacy, and retention review. A signed-in user can load the fictional starter pack into their own private bank later.
+No telemetry or ticketing provider is connected, and the app makes no production changes. Operational integrations require a separate data-access, privacy, and retention review. The requested live seed action was not performed in this workspace: there is no active hosted WebDev project or configured Hindsight/OAuth environment here. A signed-in user can load the fictional starter pack into their own private bank from a configured deployment later.

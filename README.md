@@ -83,10 +83,15 @@ When a Hindsight URL is configured, sign in first. Select **Memory bank → Load
 - API keys stay server-side. Live operations require authentication and use a private bank per user. Persistent request limits allow 30 live actions per user per minute and fail closed if the managed database is unavailable.
 - The database audit log stores only a pseudonymous actor hash plus action type and fixed target label—not incident text, email, or OAuth IDs—and deletes audit rows after 30 days. Hindsight memory has its own provider-side retention controls.
 - The audit dashboard is authenticated and role-scoped: personal by default, with workspace analytics reserved for admins. Workspace user labels are pseudonymous; CSV exports contain only the already-authorized metadata view.
+- Admin workspace analytics show in-app alerts when an account reaches 80% of its 30-request/minute limit, exceeds that limit, or has an unusual spike (at least 10 requests and 3× the median of at least three active peers). These are heuristic signals, not proof of misuse; they are derived from the current request window, are not separately retained, and are not sent to an external channel.
 - A Hindsight URL failure is surfaced as synthetic fallback evidence, explicitly marked as such. An empty live bank is not silently represented as a successful recall.
 - Recommendations are hypotheses. The interface requests read-only checks, filters unsafe action-like model output, and never executes a remediation.
 - Synthetic metrics and incident histories are illustrative, not measured production results. No accuracy or time-saving claims are made.
 - The in-browser simulation stores outcomes in `localStorage`; live Hindsight mode retains confirmed outcomes in the configured bank.
+
+### Future telemetry or ticketing integration scope (not connected)
+
+Before connecting an operational source, keep the initial integration read-only and allowlist only a stable source record ID, service/environment label, severity, event timestamp, short sanitized symptom summary, and a change or runbook reference. Exclude raw logs/traces, request or response bodies, attachments, credentials, personal data, and customer identifiers. Source payloads should be used transiently for the current investigation and not copied into the audit database. Only a human-confirmed, sanitized outcome may be retained as a private Hindsight memory. App audit metadata retains its existing 30-day TTL; source-side telemetry/ticket retention and Hindsight memory expiry remain separately controlled and must be reviewed with the chosen provider before enabling a connector. RecallOps will not write tickets or perform remediation.
 
 ## Verify
 

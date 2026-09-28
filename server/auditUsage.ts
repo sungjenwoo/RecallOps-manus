@@ -9,8 +9,21 @@ export type AuditUsageAction =
   | "seed-pack"
   | "verified-outcome";
 export type AuditUsageScope = "personal" | "workspace";
+export type AuditUsageAlert = {
+  id: string;
+  severity: "critical" | "warning";
+  kind: "request-limit" | "unusual-usage";
+  actorLabel: string;
+  requestCount: number;
+  threshold: number;
+  title: string;
+  detail: string;
+};
 
 const REQUESTS_PER_MINUTE = 30;
+const MIN_UNUSUAL_REQUESTS = 10;
+const PEER_SPIKE_MULTIPLIER = 3;
+const MIN_PEERS_FOR_SPIKE = 3;
 const RANGE_CONFIG: Record<
   AuditUsageRange,
   { buckets: number; seconds: number }
@@ -39,6 +52,101 @@ function auditFilters(input: {
 function safeCount(value: unknown): number {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1]! + sorted[middle]!) / 2
+    : sorted[middle]!;
+}
+
+/**
+ * Build ephemeral admin-only usage signals from the existing pseudonymous
+ * current-minute counters. No alert history or identity lookup is created.
+ */
+export function buildWorkspaceUsageAlerts(input: {
+  scope: AuditUsageScope;
+  rateRows: readonly { subjectHash: string; requestCount: number }[];
+  requestLimit?: number;
+}): AuditUsageAlert[] {
+  if (input.scope !== "workspace") return [];
+
+  const requestLimit = input.requestLimit ?? REQUESTS_PER_MINUTE;
+  const activeRows = input.rateRows
+    .map(row => ({
+      subjectHash: row.subjectHash,
+      requestCount: safeCount(row.requestCount),
+    }))
+    .filter(row => row.requestCount > 0);
+  const alerts: AuditUsageAlert[] = [];
+
+  for (const row of activeRows) {
+    const actorLabel = `user-${row.subjectHash.slice(0, 12)}`;
+    if (row.requestCount > requestLimit) {
+      const blocked = row.requestCount - requestLimit;
+      alerts.push({
+        id: `${actorLabel}-limit-exceeded`,
+        severity: "critical",
+        kind: "request-limit",
+        actorLabel,
+        requestCount: row.requestCount,
+        threshold: requestLimit,
+        title: "Request limit exceeded",
+        detail: `${row.requestCount} attempts in the current minute; ${blocked} were above the ${requestLimit}-per-minute per-account limit.`,
+      });
+    } else if (row.requestCount >= Math.ceil(requestLimit * 0.8)) {
+      alerts.push({
+        id: `${actorLabel}-limit-near`,
+        severity: "warning",
+        kind: "request-limit",
+        actorLabel,
+        requestCount: row.requestCount,
+        threshold: Math.ceil(requestLimit * 0.8),
+        title: "Approaching request limit",
+        detail: `${row.requestCount} attempts in the current minute, at least 80% of the ${requestLimit}-per-minute per-account limit.`,
+      });
+    }
+  }
+
+  if (activeRows.length >= MIN_PEERS_FOR_SPIKE + 1) {
+    for (const row of activeRows) {
+      const peerMedian = median(
+        activeRows
+          .filter(peer => peer.subjectHash !== row.subjectHash)
+          .map(peer => peer.requestCount)
+      );
+      const spikeThreshold = Math.max(
+        MIN_UNUSUAL_REQUESTS,
+        Math.ceil(peerMedian * PEER_SPIKE_MULTIPLIER)
+      );
+      if (row.requestCount < spikeThreshold) continue;
+
+      const actorLabel = `user-${row.subjectHash.slice(0, 12)}`;
+      alerts.push({
+        id: `${actorLabel}-usage-spike`,
+        severity: "warning",
+        kind: "unusual-usage",
+        actorLabel,
+        requestCount: row.requestCount,
+        threshold: spikeThreshold,
+        title: "Unusual request-volume spike",
+        detail: `${row.requestCount} attempts are at least 3× the median of the other active accounts (minimum ${MIN_UNUSUAL_REQUESTS} requests).`,
+      });
+    }
+  }
+
+  return alerts
+    .sort(
+      (a, b) =>
+        (a.severity === "critical" ? 0 : 1) -
+          (b.severity === "critical" ? 0 : 1) ||
+        b.requestCount - a.requestCount ||
+        a.id.localeCompare(b.id)
+    )
+    .slice(0, 20);
 }
 
 /**
@@ -188,6 +296,12 @@ export async function getAuditUsageDashboard(input: {
       .slice(0, 20);
   }
 
+  const alerts = buildWorkspaceUsageAlerts({
+    scope: input.scope,
+    rateRows,
+    requestLimit: REQUESTS_PER_MINUTE,
+  });
+
   const attemptsThisMinute = rateRows.reduce(
     (sum, row) => sum + safeCount(row.requestCount),
     0
@@ -221,6 +335,7 @@ export async function getAuditUsageDashboard(input: {
           : null,
     },
     series,
+    alerts,
     recentEvents: recentRows.map(row => ({
       id: row.id,
       actorLabel:

@@ -48,6 +48,14 @@ The protected dashboard reads only the pseudonymous audit and rolling-limit tabl
 
 The dashboard reports accepted live memory operations from audit events separately from the rolling request counter, which includes over-limit attempts. Simulation activity is local and is not represented as live API usage. Recent event rows expose only fixed target labels and timestamps; they expire after 30 days under the existing audit policy.
 
+### Admin usage alerts
+
+Only the admin-authorized workspace response includes alert signals. A warning appears at 24 of 30 requests in the current per-account minute; exceeding 30 is critical. An unusual-usage warning requires at least four active accounts and flags an account at `max(10, 3 × median(other active accounts))` requests. Labels remain pseudonymous. Alerts are recalculated from the existing current-minute rate-limit rows on each dashboard refresh; no alert record, identity lookup, or external notification is created. The spike rule is a review heuristic, not a security verdict.
+
+## Proposed telemetry/ticketing scope (not connected)
+
+Any first connector should be read-only and limited to a documented allowlist: stable source record ID, service/environment label, severity, event timestamp, short sanitized symptom summary, and a change or runbook reference. Raw logs/traces, request/response bodies, attachments, credentials, personal data, and customer identifiers are out of scope. Source payloads should be transient for the current investigation and not copied to the audit tables. Only a human-confirmed, sanitized outcome may be retained in a user's private Hindsight bank. App audit metadata keeps its existing 30-day expiry; source-provider retention and Hindsight memory expiry are separate controls that must be reviewed for the selected provider before connection. No ticket writes or remediation are in scope.
+
 ## Deliberate constraints
 
 1. No production telemetry/ticketing integrations, shell execution, infrastructure write actions, restart, rollback, scale, or automated remediation.

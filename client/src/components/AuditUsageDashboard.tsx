@@ -14,6 +14,7 @@ import type {
   AuditUsageRange,
 } from "../../../server/auditUsage";
 import {
+  AlertTriangle,
   Activity,
   BarChart3,
   CheckCircle2,
@@ -22,6 +23,7 @@ import {
   Fingerprint,
   LoaderCircle,
   RefreshCw,
+  ShieldAlert,
   ShieldCheck,
   Users,
   Workflow,
@@ -110,7 +112,7 @@ function createSampleDashboardData(
       event,
     ]);
   }
-  const minuteAttempts = [6, 4, 3, 2, 0];
+  const minuteAttempts = [18, 4, 3, 2, 0];
   const users = actors
     .map((actorLabel, index) => {
       const events = actorEvents.get(actorLabel) ?? [];
@@ -150,6 +152,19 @@ function createSampleDashboardData(
       remainingThisMinute: null,
     },
     series,
+    alerts: [
+      {
+        id: "sample-user-01-usage-spike",
+        severity: "warning",
+        kind: "unusual-usage",
+        actorLabel: actors[0]!,
+        requestCount: 18,
+        threshold: 10,
+        title: "Unusual request-volume spike",
+        detail:
+          "18 attempts are at least 3× the median of the other active accounts (minimum 10 requests).",
+      },
+    ],
     recentEvents: filteredEvents
       .toSorted((a, b) => b.createdAt - a.createdAt)
       .slice(0, 50),
@@ -591,6 +606,71 @@ export default function AuditUsageDashboard() {
                 : `${displayAttempts} / ${data.requestLimitPerMinute}`}
             </span>
           </div>
+
+          {(isSamplePreview || (isAdmin && scope === "workspace")) && (
+            <section
+              className={`audit-alert-panel ${data.alerts.length ? "has-alerts" : "no-alerts"}`}
+              aria-label="Admin usage alerts"
+              aria-live="polite"
+            >
+              <div className="audit-alert-heading">
+                <div>
+                  <div className="panel-kicker">ADMIN ALERTS · IN-APP ONLY</div>
+                  <h2>Usage signals</h2>
+                  <p>
+                    {isSamplePreview
+                      ? "A fictional alert demonstrates the rule; no live counters are queried."
+                      : "Current-minute signals from pseudonymous request counters."}
+                  </p>
+                </div>
+                <span className="audit-alert-total">
+                  {data.alerts.length
+                    ? `${data.alerts.length} active`
+                    : "No active alerts"}
+                </span>
+              </div>
+              {data.alerts.length ? (
+                <div className="audit-alert-list">
+                  {data.alerts.map(alert => (
+                    <div
+                      className={`audit-alert-card audit-alert-${alert.severity}`}
+                      key={alert.id}
+                    >
+                      <span className="audit-alert-icon">
+                        {alert.severity === "critical" ? (
+                          <ShieldAlert className="h-4 w-4" />
+                        ) : (
+                          <AlertTriangle className="h-4 w-4" />
+                        )}
+                      </span>
+                      <div className="audit-alert-copy">
+                        <div className="audit-alert-title-row">
+                          <strong>{alert.title}</strong>
+                          <code>{alert.actorLabel}</code>
+                        </div>
+                        <p>{alert.detail}</p>
+                      </div>
+                      <div className="audit-alert-metric">
+                        <b>{alert.requestCount}</b>
+                        <small>requests/min</small>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="audit-alert-empty">
+                  <CheckCircle2 className="h-4 w-4" />
+                  No threshold or unusual-usage signals in the current minute.
+                </div>
+              )}
+              <p className="audit-alert-note">
+                Signals fire at 24/30 requests per minute, above the 30-request
+                cap, or at 3× the median of at least three peer accounts (with a
+                10-request minimum). These heuristics are not proof of misuse.
+                Alert history and external notifications are not stored.
+              </p>
+            </section>
+          )}
 
           <div
             className={`audit-content-grid ${scope === "workspace" ? "audit-content-workspace" : ""}`}

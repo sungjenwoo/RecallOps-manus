@@ -12,7 +12,7 @@ Incident knowledge is scattered across tickets, chat threads, and postmortems. D
 
 1. **Describe an incident** — Choose one of three clearly labelled fictional scenarios or enter synthetic symptoms, service, environment, impact, and recent change.
 2. **Recall relevant experience** — Hindsight retrieves related memories. The UI shows source IDs and whether evidence is live Hindsight memory, synthetic sample data, or a browser-local lesson.
-3. **Build an investigation plan** — Groq can reason over the current report and cited evidence. Without Groq credentials, an evidence-guided rules fallback keeps the demo functional and identifies itself honestly.
+3. **Coordinate four specialist roles in one model call** — Incident Triage, Memory Scout, Read-only Planner, and Playbook Composer return structured summaries, cited hypotheses, observational checks, and a reusable sequence. This is one on-demand request—not four parallel agents or background workers. Without Groq credentials, the evidence-guided rules fallback keeps the demo functional and identifies itself honestly.
 4. **Compare memory vs. no memory** — A side-by-side panel makes the value of prior experience visible. A past incident is framed as a hypothesis to test, never as proof.
 5. **Close the learning loop** — An engineer records a confirmed root cause, failed actions, successful resolution, and follow-up lesson. A required human confirmation precedes saving.
 6. **Use that lesson next time** — In live mode, the lesson is retained in Hindsight and can inform later recall. In simulation mode, the lesson is stored only in that browser's local storage.
@@ -38,8 +38,8 @@ flowchart LR
   UI --> API[tRPC server]
   API --> R[Hindsight recall]
   R --> E[Evidence with source IDs]
-  E --> G[Groq planner or transparent rules fallback]
-  G --> P[Read-only checks and hypotheses]
+  E --> G[Single-call Groq coordinator or transparent rules fallback]
+  G --> P[Triage, memory brief, checks, playbook sequence]
   U -->|human confirms outcome| T[Hindsight retain]
   T --> R
 ```
@@ -61,23 +61,24 @@ Open the local URL printed by the dev server. The app works without credentials 
 
 ### Optional integrations
 
-| Variable                | Purpose                                                                                                                        |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `HINDSIGHT_API_URL`     | Base URL of your Hindsight API instance (omit `/v1`); obtain the correct URL from your Hindsight deployment or Cloud settings. |
-| `HINDSIGHT_API_KEY`     | Optional for local/self-hosted Hindsight with auth disabled; set the server-side bearer key when API-key auth is enabled.      |
-| `VITE_OAUTH_PORTAL_URL` | Manus sign-in portal base URL used by the client.                                                                              |
-| `VITE_APP_ID`           | Registered RecallOps app ID used by the sign-in flow.                                                                          |
-| `OAUTH_SERVER_URL`      | Server-side OAuth token/user-info service URL.                                                                                 |
-| `DATABASE_URL`          | Required for live user sessions, durable request limits, and audit records.                                                    |
-| `JWT_SECRET`            | Required stable server secret for session signing and per-user private-bank derivation.                                        |
-| `GROQ_API_KEY`          | Optional server-side key for Groq evidence-grounded plan generation.                                                           |
-| `GROQ_MODEL`            | Optional Groq model name; defaults to `openai/gpt-oss-120b`.                                                                   |
+| Variable                      | Purpose                                                                                                                        |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `HINDSIGHT_API_URL`           | Base URL of your Hindsight API instance (omit `/v1`); obtain the correct URL from your Hindsight deployment or Cloud settings. |
+| `HINDSIGHT_API_KEY`           | Optional for local/self-hosted Hindsight with auth disabled; set the server-side bearer key when API-key auth is enabled.      |
+| `VITE_OAUTH_PORTAL_URL`       | Manus sign-in portal base URL used by the client.                                                                              |
+| `VITE_APP_ID`                 | Registered RecallOps app ID used by the sign-in flow.                                                                          |
+| `OAUTH_SERVER_URL`            | Server-side OAuth token/user-info service URL.                                                                                 |
+| `DATABASE_URL`                | Required for live user sessions, durable request limits, and audit records.                                                    |
+| `JWT_SECRET`                  | Required stable server secret for session signing and per-user private-bank derivation.                                        |
+| `GROQ_API_KEY`                | Optional server-side key for Groq evidence-grounded plan generation.                                                           |
+| `GROQ_MODEL`                  | Optional Groq model name for the one-request specialist coordinator; defaults to `openai/gpt-oss-120b`.                        |
+| `RECALLOPS_AGENT_COORDINATOR` | Optional kill switch; set to `false` to force the deterministic rules fallback.                                                |
 
 The runtime intentionally ignores any legacy `HINDSIGHT_BANK_ID` setting: live bank IDs are derived server-side per signed-in account. Live mode also requires the managed MySQL tables in `drizzle/schema.ts`; for a fresh environment, configure `DATABASE_URL` and apply the generated Drizzle migration before enabling live operations. The WebDev demo database already has the security tables applied.
 
 `HINDSIGHT_API_URL` can point to Hindsight Cloud or a self-hosted API. Hindsight bearer authentication uses `Authorization: Bearer <key>` through the official SDK. Never put either provider key in a `VITE_` variable, client code, screenshots, or a public commit. See the [Hindsight quickstart](https://hindsight.vectorize.io/developer/api/quickstart), [retain guide](https://hindsight.vectorize.io/developer/api/retain), and [recall guide](https://hindsight.vectorize.io/developer/api/recall).
 
-The optional Groq path defaults to `openai/gpt-oss-120b` and requests strict JSON Schema output, then validates evidence IDs and filters unsafe action-like recommendations. See the [official Groq model page](https://console.groq.com/docs/model/openai/gpt-oss-120b), [Structured Outputs guide](https://console.groq.com/docs/structured-outputs), and [`docs/GROQ_REFERENCES.md`](docs/GROQ_REFERENCES.md).
+The optional Groq path defaults to `openai/gpt-oss-120b` and makes at most one model request per analysis, capped at 3,000 generated tokens. That request coordinates four bounded roles—Incident Triage, Memory Scout, Read-only Planner, and Playbook Composer—using strict JSON Schema output. The server then validates evidence IDs and filters unsafe action-like plan items. These are logical prompt roles, not independent agents with separate calls, credentials, or tools. Set `RECALLOPS_AGENT_COORDINATOR=false` to force the transparent rules fallback. See the [official Groq model page](https://console.groq.com/docs/model/openai/gpt-oss-120b), [Structured Outputs guide](https://console.groq.com/docs/structured-outputs), and [`docs/GROQ_REFERENCES.md`](docs/GROQ_REFERENCES.md).
 
 When live OAuth, database, and Hindsight settings are configured, open **Memory bank → Sign in for your private pack**. The app carries that explicit, one-use seed request across the OAuth redirect (for up to 10 minutes), loads the fictional postmortems into the signed-in user's private bank, and opens **Usage & audit** to verify the live seed event. Generic sign-in never seeds automatically. Then open **Incident room**, choose a scenario, and run analysis. A verified outcome is retained only after the human-confirmation control is checked. Without Hindsight configuration, the app stays in visibly labelled simulation mode and performs no private-bank write.
 
@@ -91,6 +92,7 @@ When live OAuth, database, and Hindsight settings are configured, open **Memory 
 - Signed-in users see private in-app warnings at 80% of their 30-request/minute limit and a critical alert if it is exceeded. Admin workspace analytics show the same thresholds with pseudonymous labels, plus unusual spikes (at least 10 requests and 3× the median of at least three active peers). These are heuristic signals, not proof of misuse; they are derived from the current request window, are not separately retained, and are not sent to an external channel.
 - A Hindsight URL failure is surfaced as synthetic fallback evidence, explicitly marked as such. An empty live bank is not silently represented as a successful recall.
 - Recommendations are hypotheses. The interface requests read-only checks, filters unsafe action-like model output, and never executes a remediation.
+- The specialist coordinator receives the redacted incident fields and the current analysis's retrieved evidence only. Specialist outputs are returned for the current view; intermediate reasoning is not stored in the audit database. Usage alerts remain deterministic and actor-level audit rows are never sent to the model.
 - Synthetic metrics and incident histories are illustrative, not measured production results. No accuracy or time-saving claims are made.
 - The in-browser simulation stores outcomes in `localStorage`; live Hindsight mode retains confirmed outcomes in the configured bank.
 
@@ -109,8 +111,8 @@ pnpm build
 ## Hackathon demo flow
 
 1. Open the **Checkout 502s** synthetic scenario and point out the recent worker-concurrency change.
-2. Analyze and inspect `[E1]`: a fictional earlier incident where restarts failed and a verified config rollback restored service.
-3. Show the memory delta: generic release/metrics checks become a more specific _hypothesis_ to compare configuration and queue telemetry—still not a confirmed diagnosis.
+2. Analyze and inspect `[E1]`: a fictional earlier incident where restarts failed and a verified config rollback restored service. Point out the Incident Triage, Memory Scout, Read-only Planner, and Playbook Composer sections are produced in one call.
+3. Show the memory delta: generic release/metrics checks become a more specific _hypothesis_ to compare configuration and queue telemetry—still not a confirmed diagnosis. Open **Playbooks** to review the cited, read-only sequence from the same analysis.
 4. Record a human-confirmed outcome, explicitly noting what failed and what resolved it.
 5. Run analysis again. Show the newly retained or browser-local lesson as evidence and explain the difference between live Hindsight and simulation mode.
 

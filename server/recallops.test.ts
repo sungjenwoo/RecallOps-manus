@@ -16,10 +16,41 @@ describe("RecallOps incident safety", () => {
     expect(status.hindsightAuthConfigured).toBe(
       Boolean(process.env.HINDSIGHT_API_KEY)
     );
-    expect(status.groqConfigured).toBe(Boolean(process.env.GROQ_API_KEY));
+    expect(status.groqConfigured).toBe(
+      Boolean(process.env.GROQ_API_KEY?.trim())
+    );
+    expect(status.specialistCoordinatorEnabled).toBe(
+      process.env.RECALLOPS_AGENT_COORDINATOR !== "false"
+    );
     expect(status.authRequired).toBe(status.hindsightConfigured);
     expect(status).not.toHaveProperty("bankId");
     expect(status).not.toHaveProperty("apiKey");
+  });
+
+  it("labels an unconfigured simulation as a zero-call rules fallback", async () => {
+    if (
+      integrationStatus().hindsightConfigured ||
+      process.env.GROQ_API_KEY ||
+      process.env.RECALLOPS_AGENT_COORDINATOR === "false"
+    ) {
+      return;
+    }
+
+    const result = await analyzeIncident({
+      service: "checkout-api",
+      environment: "fictional",
+      summary: "Synthetic timeouts after a release change.",
+      recentChange: "Worker pool setting changed.",
+      impact: "Fictional demo only.",
+      browserMemories: [],
+    });
+
+    expect(result.agentRun).toEqual({
+      mode: "rules-fallback",
+      roles: [],
+      modelCalls: 0,
+    });
+    expect(result.modelSource).toContain("no model key configured");
   });
 
   it("does not claim a fictional pack was persisted when Hindsight is unconfigured", async () => {

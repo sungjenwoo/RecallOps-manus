@@ -1,35 +1,26 @@
-# RecallOps project tracker
+# RecallOps build tracker
 
-## Implemented
+## Delivered and verified
 
-- [x] Responsive incident room with editable, synthetic checkout, database-latency, and identity scenarios.
-- [x] Evidence-grounded hypothesis/checklist generation with source IDs, confidence, a stateless-vs-memory comparison, and explicit uncertainty.
-- [x] Server-side Hindsight SDK integration for recall and human-confirmed retain; stable IDs for the optional synthetic seed pack.
-- [x] Optional Groq planner using strict JSON Schema output and server-side model credentials; rules-based fallback when unavailable.
-- [x] Safe, read-only recommendations; model-output validation; common secret-pattern redaction; public demo request limit.
-- [x] Human confirmation before recording a root cause, failed attempts, and verified resolution.
-- [x] Clearly distinguished live Hindsight, fallback, simulation, synthetic sample, and browser-local memory states.
-- [x] Memory library, playbooks, activity timeline, setup/architecture notes, and draft article/social/video script.
-- [x] Unit tests cover redaction, simulation labels, service-relevant retrieval, safety text, and rate limiting.
+- [x] Reviewed the hackathon brief and supplied Hindsight project notes.
+- [x] Built a polished responsive incident workspace with three clearly fictional scenarios.
+- [x] Implemented service-relevant citations, cautious hypotheses, read-only checks, confidence, and a with/without-memory comparison.
+- [x] Implemented server-side Hindsight recall/retain and an optional Groq planner using strict JSON Schema, evidence-ID validation, and a rules fallback.
+- [x] Added human-confirmed outcome capture, failed-fix history, secret redaction, and a bounded demo request limiter.
+- [x] Implemented simulation-only browser memory and clear distinctions between local and live memory.
+- [x] Added memory, playbook, and activity views; architecture/provider references; and article/social/demo-video drafts.
+- [x] Added tests for provider status, key redaction, scenario-specific synthetic recall, safety labels, and request limits.
+- [x] Added route-level code splitting; the final Vite build no longer reports an oversized chunk.
+- [x] Ran `pnpm check`, `pnpm test` (7 passing), and `pnpm build`.
+- [x] Inspected desktop and mobile layouts and exercised the save-then-recall loop in simulation mode.
+- [x] Stored Hindsight and Groq values in WebDev project secrets, not source control.
+- [x] Ran authenticated, read-only GET checks against the configured Hindsight bank-list endpoint and Groq models endpoint; both returned HTTP 200. Secret values and response bodies were not printed.
+- [x] Pushed the source and documentation to `tanveerpasha6381-hub/RecallOps-manus` on `main`.
 
-## Verification completed
+## Awaiting explicit approval or a production decision
 
-- [x] `pnpm check`
-- [x] `pnpm test` — 5 tests pass.
-- [x] `pnpm build` — production assets generated. Vite reports a non-blocking large-chunk advisory (about 563 KB minified JS; 164 KB gzip).
-- [x] Desktop and mobile layout inspected.
-- [x] Browser test: checkout analysis cites the matching synthetic postmortem; a human-confirmed local outcome is saved and appears in a subsequent analysis.
-
-## Configure before demonstrating live provider integrations
-
-- [ ] Set `HINDSIGHT_API_URL` and, where enabled, `HINDSIGHT_API_KEY` in the server environment.
-- [ ] Optionally set `GROQ_API_KEY`; then verify live recall/retain and Groq structured output with non-sensitive test records.
-- [ ] If live Hindsight is configured, load the clearly synthetic pack before recording a live-memory demo.
-
-## Known demo limits / production follow-up
-
-- [ ] Demo metrics and scenario history are fictional; connect a trusted telemetry/incident system only after defining data access and retention.
-- [ ] Public demo procedures have IP-based, in-memory rate limiting but no user authentication or tenant isolation. Before production, add authenticated access, per-tenant bank authorization, durable abuse controls, and audit/retention policy.
-- [ ] Simulation outcomes live in browser `localStorage`; they are not shared across browsers and are not Hindsight memories.
-- [ ] Browser verification covered simulation mode only because provider credentials were not configured in this environment.
-- [ ] Consider route/component code splitting to remove the non-blocking Vite bundle-size warning before production rollout.
+- [ ] Run one Groq planner request using only the fictional checkout scenario. The key is configured, but the user authorized read-only provider checks only.
+- [ ] Write the synthetic seed pack to Hindsight and run a live recall/retain loop. No incident records were written because the user explicitly limited approval to read-only checks.
+- [ ] Before production use, choose the tenant model and add authentication, tenant-scoped Hindsight authorization, and audit/retention controls.
+- [ ] Replace process-local demo throttling with durable abuse controls before opening live memory to a broad public audience.
+- [ ] Connect real telemetry or ticketing only after the data-access, privacy, and retention model is approved.

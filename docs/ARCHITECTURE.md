@@ -42,6 +42,12 @@ If `HINDSIGHT_API_URL` is unset, the app selects an explicitly labelled public s
 
 Keep `JWT_SECRET` stable. Rotating it changes the HMAC-derived bank ID; perform a deliberate bank migration before rotating the secret if access to existing memories must be preserved.
 
+## Usage and audit dashboard
+
+The protected dashboard reads only the pseudonymous audit and rolling-limit tables. A normal account is scoped to its own HMAC actor hash. Only users with the server-side `admin` role may request workspace scope; those rows use a truncated pseudonymous label and never resolve to names, email addresses, or OAuth IDs. Date-range and action filters apply to event totals, trends, and recent rows. CSV export is generated in the browser from the same already-authorized response.
+
+The dashboard reports accepted live memory operations from audit events separately from the rolling request counter, which includes over-limit attempts. Simulation activity is local and is not represented as live API usage. Recent event rows expose only fixed target labels and timestamps; they expire after 30 days under the existing audit policy.
+
 ## Deliberate constraints
 
 1. No production telemetry/ticketing integrations, shell execution, infrastructure write actions, restart, rollback, scale, or automated remediation.

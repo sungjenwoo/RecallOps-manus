@@ -16,6 +16,7 @@ Incident knowledge is scattered across tickets, chat threads, and postmortems. D
 4. **Compare memory vs. no memory** — A side-by-side panel makes the value of prior experience visible. A past incident is framed as a hypothesis to test, never as proof.
 5. **Close the learning loop** — An engineer records a confirmed root cause, failed actions, successful resolution, and follow-up lesson. A required human confirmation precedes saving.
 6. **Use that lesson next time** — In live mode, the lesson is retained in Hindsight and can inform later recall. In simulation mode, the lesson is stored only in that browser's local storage.
+7. **Inspect usage and retention** — The Usage & audit workspace charts live API actions, rolling request-limit usage, recent metadata-only events, and expiry. Standard users see their own activity; admins can view workspace totals with pseudonymous labels and export a filtered CSV. Reviewers without an account can choose **View synthetic preview** or open `/?section=usage&sample=1`; signed-in users can also switch between live and sample views. Generated sample numbers never query or write real analytics.
 
 ## Why Hindsight is central
 
@@ -81,6 +82,7 @@ When a Hindsight URL is configured, sign in first. Select **Memory bank → Load
 - The server redacts common token/key patterns before sending user text to configured external APIs; this is a safeguard, not a guarantee of complete secret detection.
 - API keys stay server-side. Live operations require authentication and use a private bank per user. Persistent request limits allow 30 live actions per user per minute and fail closed if the managed database is unavailable.
 - The database audit log stores only a pseudonymous actor hash plus action type and fixed target label—not incident text, email, or OAuth IDs—and deletes audit rows after 30 days. Hindsight memory has its own provider-side retention controls.
+- The audit dashboard is authenticated and role-scoped: personal by default, with workspace analytics reserved for admins. Workspace user labels are pseudonymous; CSV exports contain only the already-authorized metadata view.
 - A Hindsight URL failure is surfaced as synthetic fallback evidence, explicitly marked as such. An empty live bank is not silently represented as a successful recall.
 - Recommendations are hypotheses. The interface requests read-only checks, filters unsafe action-like model output, and never executes a remediation.
 - Synthetic metrics and incident histories are illustrative, not measured production results. No accuracy or time-saving claims are made.
@@ -106,4 +108,4 @@ A fuller timed script, article draft, and social copy are in [`docs/SUBMISSION_K
 
 ## Project status
 
-This repository contains the interactive hackathon demo and setup/submission materials, including authenticated per-user live banks, durable rate limits, and 30-day pseudonymous audit retention. It does not connect to an organization's telemetry or ticketing system; any such integration requires a separate data-access, privacy, and retention review. The OAuth live path should be exercised by each account before loading synthetic starter memories into that account's private bank.
+This repository contains the interactive hackathon demo and setup/submission materials, including authenticated per-user live banks, durable rate limits, 30-day pseudonymous audit retention, and the interactive Usage & audit workspace. It does not connect to an organization's telemetry or ticketing system; any such integration requires a separate data-access, privacy, and retention review. The OAuth live path should be exercised by each account before loading synthetic starter memories into that account's private bank.

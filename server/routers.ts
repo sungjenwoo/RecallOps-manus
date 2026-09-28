@@ -5,6 +5,7 @@ import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, router } from "./_core/trpc";
+import { auditUsageRouter } from "./routers/auditUsage";
 import { consumeDurableRateLimit, recordRecallOpsAuditEvent } from "./db";
 import {
   allowPublicRequest,
@@ -103,6 +104,7 @@ const browserMemory = z.object({
 
 export const appRouter = router({
   system: systemRouter,
+  auditUsage: auditUsageRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {

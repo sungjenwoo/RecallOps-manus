@@ -15,6 +15,13 @@
       "when": 1790600716432,
       "tag": "0001_slim_quentin_quire",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1790602379205,
+      "tag": "0002_plain_loa",
+      "breakpoints": true
     }
   ]
 }

@@ -16,7 +16,7 @@ The key design choice is Hindsight's role. Memory is not a transcript drawer bes
 
 For the hackathon demo, RecallOps includes clearly labelled fictional incident scenarios: checkout errors after a worker-pool change, database connection pressure during autoscaling, and authentication failures after credential rotation. The before/after comparison illustrates the value of memory without presenting synthetic data as measured results. When no Hindsight credentials are configured, simulation mode remains interactive and stores confirmed lessons only in the current browser. The interface makes this limitation explicit rather than claiming a live memory write.
 
-RecallOps is a prototype, not an incident-management replacement. A real deployment would require authenticated access, tenant-scoped memory banks, integration with an organization's trusted incident sources, evaluation against its own postmortems, and careful review of data-retention and security controls. Its goal is narrower: help an engineer arrive at a better-informed next question, while keeping the final decision with the person responsible for the system.
+RecallOps is a prototype, not an incident-management replacement. The demo includes authenticated per-user memory banks, durable request limits, pseudonymous audit retention, and a role-scoped usage dashboard. A broader deployment would still require integration with an organization's trusted incident sources, evaluation against its own postmortems, and review of its data-access and retention policies. Its goal is narrower: help an engineer arrive at a better-informed next question, while keeping the final decision with the person responsible for the system.
 
 ### What Hindsight contributes
 
@@ -67,13 +67,13 @@ Open **Record verified outcome** and enter a fictional root cause, failed action
 
 "The system will not retain an outcome until an engineer confirms it. It records what failed as well as what worked."
 
-**1:08–1:22 — Learning loop and transparency**
+**1:08–1:21 — Learning loop and transparency**
 
-Run analysis again and show the new evidence, then show the mode badge.
+Run analysis again and show the new evidence, then open **Usage & audit**. If you are not signed in as a demo admin, select **View synthetic preview**.
 
-"In live mode, the confirmed lesson is retained in Hindsight and can be recalled later. In this local simulation, it is stored only in this browser. The language model is not retrained—the relevant memory is supplied at reasoning time."
+"In live mode, a confirmed lesson is retained in this account's private Hindsight bank. In simulation, it stays in this browser. The audit view is private and role-scoped; this sample preview is generated locally, not real request history. Live audit metadata expires after 30 days. The language model is not retrained—the relevant memory is supplied at reasoning time."
 
-**1:22–1:30 — Safety and close**
+**1:21–1:30 — Safety and close**
 
 "RecallOps is advisory only. It makes no production changes. Its job is to help engineers ask better questions, using the experience their team already earned."
 
@@ -83,5 +83,7 @@ Run analysis again and show the new evidence, then show the mode badge.
 - Show the `Hindsight connected` badge if the live integration is configured. If not, explicitly say "simulation mode".
 - Verify the demo bank contains the synthetic pack before recording a live-memory claim.
 - Show one evidence citation, one failed fix, one verified resolution, and the outcome-confirmation checkbox.
+- In **Usage & audit**, show pseudonymous workspace scope only while signed in as an admin; do not expose personal identifiers.
+- If using **View synthetic preview**, explicitly call the chart and sample accounts fictional; they are never queried from or written to the live audit tables.
 - Do not claim reduced MTTR or improved accuracy without a separate evaluation.
 - Capture the repo link and live demo URL only after they have been verified.

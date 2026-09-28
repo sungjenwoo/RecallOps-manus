@@ -1,0 +1,2 @@
+CREATE INDEX `recallops_audit_actor_created_idx` ON `recallops_audit_events` (`actorHash`,`createdAt`);--> statement-breakpoint
+CREATE INDEX `recallops_audit_created_idx` ON `recallops_audit_events` (`createdAt`);

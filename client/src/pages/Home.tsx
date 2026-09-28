@@ -1,4 +1,5 @@
 import DashboardLayout from "@/components/DashboardLayout";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { startLogin } from "@/const";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +15,7 @@ import {
   ArrowRight,
   ArrowUpRight,
   BookOpenCheck,
+  BarChart3,
   Brain,
   Check,
   CheckCircle2,
@@ -37,8 +39,11 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+
+const AuditUsageDashboard = lazy(
+  () => import("@/components/AuditUsageDashboard")
+);
 
 type Evidence = {
   id: string;
@@ -87,7 +92,7 @@ type ActivityItem = {
   createdAt: number;
   kind: "analysis" | "outcome" | "seed";
 };
-type Section = "incident" | "memory" | "playbooks" | "activity";
+type Section = "incident" | "memory" | "playbooks" | "activity" | "usage";
 
 const STORAGE_KEY = "recallops-outcomes-v1";
 const ACTIVITY_KEY = "recallops-activity-v1";
@@ -96,6 +101,7 @@ const navigation = [
   { id: "memory", label: "Memory bank", icon: Brain },
   { id: "playbooks", label: "Playbooks", icon: BookOpenCheck },
   { id: "activity", label: "Activity", icon: History },
+  { id: "usage", label: "Usage & audit", icon: BarChart3 },
 ];
 
 function readStorage<T>(key: string, fallback: T): T {
@@ -146,7 +152,14 @@ function StatusPill({
 
 export default function Home() {
   const auth = useAuth();
-  const [section, setSection] = useState<Section>("incident");
+  const [section, setSection] = useState<Section>(() => {
+    const requested = new URLSearchParams(window.location.search).get(
+      "section"
+    );
+    return navigation.some(item => item.id === requested)
+      ? (requested as Section)
+      : "incident";
+  });
   const [scenarioId, setScenarioId] = useState<string>(DEMO_SCENARIOS[0].id);
   const scenario = useMemo(
     () =>
@@ -358,7 +371,18 @@ export default function Home() {
     }
   }
 
-  const navAction = (id: string) => setSection(id as Section);
+  const navAction = (id: string) => {
+    const next = id as Section;
+    setSection(next);
+    const url = new URL(window.location.href);
+    if (next === "incident") url.searchParams.delete("section");
+    else url.searchParams.set("section", next);
+    window.history.replaceState(
+      {},
+      "",
+      `${url.pathname}${url.search}${url.hash}`
+    );
+  };
   const memoryCount =
     outcomes.length + (live && !seeded ? 0 : DEMO_INCIDENTS.length);
 
@@ -875,19 +899,30 @@ export default function Home() {
               seeding={seedMutation.isPending}
               onSignIn={startLogin}
               onSeed={seedMemoryBank}
-              onAnalyze={() => setSection("incident")}
+              onAnalyze={() => navAction("incident")}
             />
           )}
           {section === "playbooks" && (
             <PlaybooksPage
               onTryScenario={id => {
                 selectScenario(id);
-                setSection("incident");
+                navAction("incident");
               }}
             />
           )}
           {section === "activity" && (
             <ActivityPage activity={activity} outcomes={outcomes} />
+          )}
+          {section === "usage" && (
+            <Suspense
+              fallback={
+                <div className="audit-loading" role="status">
+                  Loading audit dashboard…
+                </div>
+              }
+            >
+              <AuditUsageDashboard />
+            </Suspense>
           )}
 
           <footer className="ro-footer">

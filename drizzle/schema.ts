@@ -46,5 +46,10 @@ export const recallOpsAuditEvents = mysqlTable(
   },
   table => ({
     expiresAtIdx: index("recallops_audit_expires_idx").on(table.expiresAt),
+    actorCreatedAtIdx: index("recallops_audit_actor_created_idx").on(
+      table.actorHash,
+      table.createdAt
+    ),
+    createdAtIdx: index("recallops_audit_created_idx").on(table.createdAt),
   })
 );

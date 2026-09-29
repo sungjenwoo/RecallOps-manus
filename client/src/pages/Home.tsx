@@ -486,6 +486,7 @@ export default function Home() {
         </header>
 
         <main className="ro-main">
+          <PremiumVfxBackdrop />
           {section === "incident" && (
             <>
               <div className="page-heading">
@@ -1097,6 +1098,21 @@ export default function Home() {
         </main>
       </div>
     </DashboardLayout>
+  );
+}
+
+function PremiumVfxBackdrop() {
+  return (
+    <div className="premium-vfx-backdrop" aria-hidden="true">
+      <div className="vfx-grid-plane" />
+      <div className="vfx-glow vfx-glow-a" />
+      <div className="vfx-glow vfx-glow-b" />
+      <span className="vfx-node vfx-node-a" />
+      <span className="vfx-node vfx-node-b" />
+      <span className="vfx-node vfx-node-c" />
+      <span className="vfx-beam vfx-beam-a" />
+      <span className="vfx-beam vfx-beam-b" />
+    </div>
   );
 }
 

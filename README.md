@@ -1,6 +1,8 @@
 # RecallOps
 
-**Incident response that remembers.** RecallOps helps on-call engineers investigate repeat incidents by retrieving relevant postmortems, highlighting both failed fixes and verified resolutions, and turning that evidence into a cautious investigation plan.
+**A failure-aware incident memory assistant.** RecallOps remembers what failed, what worked, and what a human verified—so on-call engineers do not start from zero during the next outage. It retrieves relevant postmortems, cites the evidence behind each hypothesis, and turns that experience into a cautious investigation plan.
+
+Its three design commitments are **failure-aware memory**, **evidence-cited reasoning**, and **human-confirmed learning**. Hindsight is the persistent experience layer; the language model is not retrained, and historical similarity is never treated as proof.
 
 > RecallOps is advisory only. It does not connect to production systems, execute commands, restart services, roll back releases, or change infrastructure.
 
@@ -93,6 +95,7 @@ When a Hindsight URL is configured, sign in first. Select **Memory bank → Load
 ```bash
 pnpm check
 pnpm test
+pnpm evaluate
 pnpm build
 ```
 
@@ -105,6 +108,10 @@ pnpm build
 5. Run analysis again. Show the newly retained or browser-local lesson as evidence and explain the difference between live Hindsight and simulation mode.
 
 A fuller timed script, article draft, and social copy are in [`docs/SUBMISSION_KIT.md`](docs/SUBMISSION_KIT.md).
+
+The judge-focused implementation checklist is in [`docs/JUDGE_READINESS_PLAN.md`](docs/JUDGE_READINESS_PLAN.md), the 75–90 second narration is in [`docs/JUDGE_DEMO_SCRIPT.md`](docs/JUDGE_DEMO_SCRIPT.md), and the honest synthetic evaluation method is in [`docs/EVALUATION_PLAN.md`](docs/EVALUATION_PLAN.md).
+
+The repeatable evaluation command is documented in [`docs/EVALUATION_PLAN.md`](docs/EVALUATION_PLAN.md). The bounded Microsoft/Azure-oriented adoption path is in [`docs/ENTERPRISE_INTEGRATION_BOUNDARY.md`](docs/ENTERPRISE_INTEGRATION_BOUNDARY.md), with a fictional sample input at [`docs/samples/azure-style-incident.json`](docs/samples/azure-style-incident.json). These samples do not connect to production systems.
 
 ## Project status
 

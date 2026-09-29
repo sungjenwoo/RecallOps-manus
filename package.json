@@ -10,6 +10,7 @@
     "check": "tsc --noEmit",
     "format": "prettier --write .",
     "test": "vitest run",
+    "evaluate": "HINDSIGHT_API_URL= HINDSIGHT_BASE_URL= GROQ_API_KEY= tsx scripts/evaluate-synthetic.ts",
     "db:push": "drizzle-kit generate && drizzle-kit migrate"
   },
   "dependencies": {

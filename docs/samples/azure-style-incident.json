@@ -1,0 +1,14 @@
+{
+  "source": "azure-monitor",
+  "sourceId": "synthetic-alert-az-2841",
+  "service": "checkout-api",
+  "environment": "synthetic production · westeurope",
+  "observedAt": "2026-09-12T09:14:00Z",
+  "symptoms": "Gateway 502 responses rose while the work queue climbed after a deployment.",
+  "recentChange": "Synthetic release rc.16 changed worker concurrency from 16 to 48.",
+  "impact": "Fictional payment requests are intermittently blocked.",
+  "confirmedRootCause": "Synthetic training data only: worker concurrency exceeded the queue capacity.",
+  "failedActions": "Three rolling restarts did not reduce the error rate.",
+  "successfulResolution": "The worker setting was returned to 16 and the queue drained.",
+  "provenance": "synthetic"
+}

@@ -182,7 +182,7 @@ function relevantDemoEvidence(input: AnalyzeInput, evidence: Evidence[]) {
   return ranked.slice(0, 3).map(entry => entry.item);
 }
 
-function normalizeEvidence(
+export function normalizeEvidence(
   input: unknown,
   kind: Evidence["kind"] = "hindsight"
 ): Evidence[] {
@@ -344,7 +344,7 @@ function parseJsonObject(text: string): Record<string, unknown> | null {
   }
 }
 
-function safeModelPlan(
+export function safeModelPlan(
   parsed: Record<string, unknown> | null,
   evidence: Evidence[]
 ): IncidentPlan | null {

@@ -77,6 +77,12 @@ type AnalysisResult = {
   memoryNote: string;
   redactionApplied: boolean;
 };
+type AnalysisDelta = {
+  evidenceAdded: string[];
+  hypothesesAdded: string[];
+  checksAdded: string[];
+  confidenceChanged: boolean;
+};
 type StoredOutcome = {
   id: string;
   service: string;
@@ -93,6 +99,31 @@ type ActivityItem = {
   kind: "analysis" | "outcome" | "seed";
 };
 type Section = "incident" | "memory" | "playbooks" | "activity" | "usage";
+
+function buildAnalysisDelta(
+  before: AnalysisResult,
+  after: AnalysisResult
+): AnalysisDelta {
+  const previousEvidence = new Set(before.evidence.map(item => item.id));
+  const previousHypotheses = new Set(
+    before.plan.hypotheses.map(item => item.title)
+  );
+  const previousChecks = new Set(
+    before.plan.readOnlyChecks.map(item => item.title)
+  );
+  return {
+    evidenceAdded: after.evidence
+      .filter(item => !previousEvidence.has(item.id))
+      .map(item => item.id),
+    hypothesesAdded: after.plan.hypotheses
+      .filter(item => !previousHypotheses.has(item.title))
+      .map(item => item.title),
+    checksAdded: after.plan.readOnlyChecks
+      .filter(item => !previousChecks.has(item.title))
+      .map(item => item.title),
+    confidenceChanged: before.plan.confidence !== after.plan.confidence,
+  };
+}
 
 const STORAGE_KEY = "recallops-outcomes-v1";
 const ACTIVITY_KEY = "recallops-activity-v1";
@@ -180,6 +211,12 @@ export default function Home() {
   const [failedActions, setFailedActions] = useState("");
   const [resolution, setResolution] = useState("");
   const [followUp, setFollowUp] = useState("");
+  const [evidenceConfirmed, setEvidenceConfirmed] = useState(false);
+  const [privacyConfirmed, setPrivacyConfirmed] = useState(false);
+  const [historicalConfirmed, setHistoricalConfirmed] = useState(false);
+  const [learningDelta, setLearningDelta] = useState<AnalysisDelta | null>(
+    null
+  );
   const [outcomes, setOutcomes] = useState<StoredOutcome[]>(() =>
     readStorage(STORAGE_KEY, [])
   );
@@ -188,6 +225,12 @@ export default function Home() {
   );
   const [seeded, setSeeded] = useState(false);
   const [showMemoryComparison, setShowMemoryComparison] = useState(true);
+  const [learningLoopStage, setLearningLoopStage] = useState<
+    "ready" | "recalled" | "retained"
+  >("ready");
+  const [retentionMode, setRetentionMode] = useState<
+    "hindsight" | "simulation" | null
+  >(null);
   const statusQuery = trpc.recallOps.status.useQuery(undefined, {
     retry: false,
     refetchOnWindowFocus: false,
@@ -224,6 +267,9 @@ export default function Home() {
     setImpact(next.impact);
     setAnalysis(null);
     setIsRecording(false);
+    setLearningLoopStage("ready");
+    setRetentionMode(null);
+    setLearningDelta(null);
   }
 
   async function runAnalysis() {
@@ -249,7 +295,13 @@ export default function Home() {
         impact,
         browserMemories,
       });
+      if (learningLoopStage === "retained" && analysis) {
+        setLearningDelta(
+          buildAnalysisDelta(analysis, result as AnalysisResult)
+        );
+      }
       setAnalysis(result as AnalysisResult);
+      setLearningLoopStage("recalled");
       setIsRecording(false);
       addActivity({
         id: result.id,
@@ -279,9 +331,14 @@ export default function Home() {
       startLogin();
       return;
     }
-    if (!confirmed) {
+    if (
+      !confirmed ||
+      !evidenceConfirmed ||
+      !privacyConfirmed ||
+      !historicalConfirmed
+    ) {
       toast.error(
-        "Confirm that the root cause and resolution were verified by a human."
+        "Complete every confirmation checkpoint before retaining this lesson."
       );
       return;
     }
@@ -307,6 +364,8 @@ export default function Home() {
       };
       if (result.mode === "simulation")
         setOutcomes(current => [localItem, ...current].slice(0, 20));
+      setLearningLoopStage("retained");
+      setRetentionMode(result.mode);
       addActivity({
         id: `OUT-${Date.now()}`,
         title:
@@ -319,6 +378,9 @@ export default function Home() {
       });
       setIsRecording(false);
       setConfirmed(false);
+      setEvidenceConfirmed(false);
+      setPrivacyConfirmed(false);
+      setHistoricalConfirmed(false);
       setRootCause("");
       setFailedActions("");
       setResolution("");
@@ -439,19 +501,59 @@ export default function Home() {
                       day: "numeric",
                     }).format(new Date())}
                   </div>
-                  <h1>Resolve with context.</h1>
-                  <p>Start with the evidence your team already earned.</p>
+                  <h1>Investigate with institutional memory.</h1>
+                  <p>
+                    Connect today&apos;s symptoms to evidence your team already
+                    earned.
+                  </p>
                 </div>
                 <div className="heading-aside">
                   <span className="synthetic-label">
                     <Fingerprint className="h-3.5 w-3.5" />
-                    SYNTHETIC TELEMETRY
+                    SYNTHETIC ENTERPRISE DEMO
                   </span>
                   <span className="text-[11px] text-slate-500">
                     Demo workspace · no production changes
                   </span>
                 </div>
               </div>
+
+              <section
+                className="judge-story-card"
+                aria-label="RecallOps value proposition"
+              >
+                <div className="judge-story-mark">
+                  <Brain className="h-5 w-5" />
+                </div>
+                <div className="judge-story-copy">
+                  <span className="panel-kicker">
+                    FAILURE-AWARE INCIDENT MEMORY
+                  </span>
+                  <strong>
+                    Remember what failed, what worked, and what a human
+                    verified.
+                  </strong>
+                  <p>
+                    RecallOps turns prior incident experience into cited
+                    hypotheses for the next investigation—without treating
+                    similarity as proof or making production changes.
+                  </p>
+                </div>
+                <div
+                  className="judge-story-pills"
+                  aria-label="Product differentiators"
+                >
+                  <span>
+                    <X className="h-3 w-3" /> Failed fixes
+                  </span>
+                  <span>
+                    <Fingerprint className="h-3 w-3" /> Cited evidence
+                  </span>
+                  <span>
+                    <CheckCircle2 className="h-3 w-3" /> Human-confirmed
+                  </span>
+                </div>
+              </section>
 
               <section className="incident-banner">
                 <div className="incident-banner-main">
@@ -488,6 +590,13 @@ export default function Home() {
                   </div>
                 </div>
               </section>
+
+              <LearningLoopBanner
+                stage={learningLoopStage}
+                retentionMode={retentionMode}
+                onRerun={runAnalysis}
+              />
+              {learningDelta && <LearningDeltaPanel delta={learningDelta} />}
 
               <section
                 className="metric-row"
@@ -826,17 +935,65 @@ export default function Home() {
                       />
                     </label>
                   </div>
-                  <label className="confirmation-check">
-                    <input
-                      type="checkbox"
-                      checked={confirmed}
-                      onChange={event => setConfirmed(event.target.checked)}
-                    />
-                    <span>
-                      I confirm this outcome was verified by a human engineer;
-                      this is historical evidence, not an automatic instruction.
-                    </span>
-                  </label>
+                  <div className="confirmation-checklist">
+                    <div className="checkpoint-heading">
+                      <ShieldCheck className="h-4 w-4" />
+                      <strong>Safe decision checkpoint</strong>
+                      <span>
+                        Only verified, privacy-safe lessons enter memory.
+                      </span>
+                    </div>
+                    <label className="confirmation-check">
+                      <input
+                        type="checkbox"
+                        checked={evidenceConfirmed}
+                        onChange={event =>
+                          setEvidenceConfirmed(event.target.checked)
+                        }
+                      />
+                      <span>
+                        The root cause and successful resolution are supported
+                        by current evidence.
+                      </span>
+                    </label>
+                    <label className="confirmation-check">
+                      <input
+                        type="checkbox"
+                        checked={confirmed}
+                        onChange={event => setConfirmed(event.target.checked)}
+                      />
+                      <span>
+                        A human engineer verified this outcome; it is not a
+                        repeated hypothesis.
+                      </span>
+                    </label>
+                    <label className="confirmation-check">
+                      <input
+                        type="checkbox"
+                        checked={privacyConfirmed}
+                        onChange={event =>
+                          setPrivacyConfirmed(event.target.checked)
+                        }
+                      />
+                      <span>
+                        The lesson contains no credentials, secrets, personal
+                        data, or customer data.
+                      </span>
+                    </label>
+                    <label className="confirmation-check">
+                      <input
+                        type="checkbox"
+                        checked={historicalConfirmed}
+                        onChange={event =>
+                          setHistoricalConfirmed(event.target.checked)
+                        }
+                      />
+                      <span>
+                        This is historical evidence for future investigation,
+                        not an automatic instruction.
+                      </span>
+                    </label>
+                  </div>
                   <div className="outcome-footer">
                     <span>
                       <ShieldAlert className="h-4 w-4" />
@@ -847,6 +1004,9 @@ export default function Home() {
                       disabled={
                         saveMutation.isPending ||
                         !confirmed ||
+                        !evidenceConfirmed ||
+                        !privacyConfirmed ||
+                        !historicalConfirmed ||
                         rootCause.trim().length < 8 ||
                         resolution.trim().length < 8
                       }
@@ -975,6 +1135,126 @@ function EmptyAnalysis({ onAnalyze }: { onAnalyze: () => void }) {
         <ArrowRight className="h-3.5 w-3.5" />
       </button>
     </div>
+  );
+}
+
+function LearningLoopBanner({
+  stage,
+  retentionMode,
+  onRerun,
+}: {
+  stage: "ready" | "recalled" | "retained";
+  retentionMode: "hindsight" | "simulation" | null;
+  onRerun: () => void;
+}) {
+  const steps = [
+    { label: "Recall", detail: "Find prior experience" },
+    { label: "Investigate", detail: "Compare evidence" },
+    { label: "Human confirms", detail: "Verify what happened" },
+    { label: "Retain", detail: "Make the lesson reusable" },
+    { label: "Recall again", detail: "See what changed" },
+  ];
+  const activeStep = stage === "ready" ? 0 : stage === "recalled" ? 2 : 4;
+  const retainedLabel =
+    retentionMode === "hindsight"
+      ? "Confirmed lesson retained in private Hindsight memory."
+      : retentionMode === "simulation"
+        ? "Confirmed lesson saved locally for this browser."
+        : "Run the incident analysis to see how prior experience changes the plan.";
+
+  return (
+    <section
+      className="learning-loop-banner"
+      aria-label="RecallOps learning loop"
+    >
+      <div className="learning-loop-copy">
+        <div className="panel-kicker">THE DIFFERENCE IS THE LOOP</div>
+        <strong>
+          RecallOps learns from verified experience, not chat history.
+        </strong>
+        <p>{retainedLabel}</p>
+      </div>
+      <div className="learning-loop-steps">
+        {steps.map((step, index) => {
+          const complete = activeStep > index;
+          const current = activeStep === index;
+          return (
+            <div
+              className={`learning-loop-step ${complete ? "complete" : ""} ${current ? "current" : ""}`}
+              key={step.label}
+            >
+              <span className="learning-loop-number">
+                {complete ? <Check className="h-3 w-3" /> : index + 1}
+              </span>
+              <span>
+                <b>{step.label}</b>
+                <small>{step.detail}</small>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {stage === "retained" && (
+        <Button className="learning-loop-action" onClick={onRerun}>
+          Run again to verify <ArrowRight className="ml-1 h-3.5 w-3.5" />
+        </Button>
+      )}
+    </section>
+  );
+}
+
+function LearningDeltaPanel({ delta }: { delta: AnalysisDelta }) {
+  const totalChanges =
+    delta.evidenceAdded.length +
+    delta.hypothesesAdded.length +
+    delta.checksAdded.length;
+  return (
+    <section
+      className="learning-delta-panel"
+      aria-label="What changed after learning"
+    >
+      <div className="learning-delta-title">
+        <div className="delta-badge">
+          <RefreshCw className="h-3.5 w-3.5" />
+          WHAT CHANGED AFTER LEARNING?
+        </div>
+        <span>
+          {totalChanges
+            ? `${totalChanges} observable updates`
+            : "No new differences"}
+        </span>
+      </div>
+      <div className="learning-delta-grid">
+        <div>
+          <b>New evidence</b>
+          <span>
+            {delta.evidenceAdded.length
+              ? delta.evidenceAdded.map(id => `[${id}]`).join(", ")
+              : "No new evidence IDs"}
+          </span>
+        </div>
+        <div>
+          <b>New hypotheses</b>
+          <span>{delta.hypothesesAdded.length || "None"}</span>
+        </div>
+        <div>
+          <b>Read-only checks</b>
+          <span>{delta.checksAdded.length || "No new checks"}</span>
+        </div>
+        <div>
+          <b>Confidence</b>
+          <span>
+            {delta.confidenceChanged
+              ? "Changed; verify current evidence"
+              : "Unchanged; memory is still not proof"}
+          </span>
+        </div>
+      </div>
+      <p>
+        This reports observable differences between the two analyses; it does
+        not claim improved accuracy or retraining.
+      </p>
+    </section>
   );
 }
 
@@ -1184,24 +1464,7 @@ function AnalysisView({
           </div>
           <div className="evidence-list">
             {analysis.evidence.slice(0, 4).map(item => (
-              <div className="evidence-item" key={item.id}>
-                <div className="evidence-id">[{item.id}]</div>
-                <div>
-                  <div className="evidence-source">
-                    {item.source}
-                    <span
-                      className={`evidence-kind evidence-kind-${item.kind}`}
-                    >
-                      {item.kind === "hindsight"
-                        ? "HINDSIGHT"
-                        : item.kind === "browser-memory"
-                          ? "HUMAN CONFIRMED"
-                          : "SYNTHETIC"}
-                    </span>
-                  </div>
-                  <p>{item.text}</p>
-                </div>
-              </div>
+              <EvidenceLedger item={item} key={item.id} />
             ))}
           </div>
         </div>
@@ -1239,6 +1502,138 @@ function EvidenceRefs({ ids }: { ids: string[] }) {
   );
 }
 
+function EvidenceLedger({ item }: { item: Evidence }) {
+  const text = item.text;
+  const extract = (pattern: RegExp, fallback: string) =>
+    text.match(pattern)?.[1]?.trim() || fallback;
+  const trigger = extract(
+    /(?:Trigger and observed facts|Trigger|Incident symptoms|What happened):\s*(.*?)(?=\s+(?:Failed(?: or ineffective)? action|Actions that failed or were ineffective|Resolution|Successful resolution|Follow-up lesson|Lesson):|$)/i,
+    text
+  );
+  const failed = extract(
+    /(?:Failed(?: or ineffective)? action|Actions that failed or were ineffective|What did(?:n't| not) work):\s*(.*?)(?=\s+(?:Resolution|Successful resolution|Follow-up lesson|Lesson):|$)/i,
+    "No failed action recorded."
+  );
+  const resolution = extract(
+    /(?:Resolution|Successful resolution|Verified resolution):\s*(.*?)(?=\s+(?:Follow-up lesson|Lesson):|$)/i,
+    "No verified resolution recorded."
+  );
+  const lesson = extract(
+    /(?:Follow-up lesson|Lesson):\s*(.*)$/i,
+    "Verify current evidence before acting on this pattern."
+  );
+  const sourceLabel =
+    item.kind === "hindsight"
+      ? "HINDSIGHT"
+      : item.kind === "browser-memory"
+        ? "HUMAN CONFIRMED"
+        : "SYNTHETIC";
+  return (
+    <article className="evidence-ledger" data-evidence-id={item.id}>
+      <div className="evidence-ledger-head">
+        <div className="evidence-id">[{item.id}]</div>
+        <div className="evidence-source">
+          {item.source}
+          <span className={`evidence-kind evidence-kind-${item.kind}`}>
+            {sourceLabel}
+          </span>
+        </div>
+      </div>
+      <div className="evidence-ledger-grid">
+        <div>
+          <b>OBSERVED</b>
+          <span>{trigger}</span>
+        </div>
+        <div>
+          <b>FAILED PATH</b>
+          <span>{failed}</span>
+        </div>
+        <div>
+          <b>VERIFIED PATH</b>
+          <span>{resolution}</span>
+        </div>
+        <div>
+          <b>LESSON</b>
+          <span>{lesson}</span>
+        </div>
+      </div>
+      <p className="evidence-ledger-caution">
+        Historical similarity is evidence to investigate—not proof of
+        today&apos;s root cause.
+      </p>
+    </article>
+  );
+}
+
+function MemoryConstellation({
+  outcomes,
+  selectedId,
+  onSelect,
+}: {
+  outcomes: StoredOutcome[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}) {
+  const nodes = DEMO_INCIDENTS.map((item, index) => ({
+    id: item.id,
+    title: item.title,
+    service: item.service,
+    position: `memory-node-${index + 1}`,
+  }));
+  return (
+    <section
+      className="memory-constellation-card"
+      aria-label="Memory constellation"
+    >
+      <div className="memory-constellation-heading">
+        <div>
+          <div className="panel-kicker">SPATIAL MEMORY MAP</div>
+          <h2>Experience around the current incident</h2>
+          <p>
+            Each node is a prior pattern; visual proximity is not causal proof.
+          </p>
+        </div>
+        <span className="memory-map-badge">
+          <Network className="h-3.5 w-3.5" />
+          {nodes.length + outcomes.length} memories
+        </span>
+      </div>
+      <div className="memory-constellation-stage">
+        <div className="memory-constellation-orbit orbit-one" />
+        <div className="memory-constellation-orbit orbit-two" />
+        <span className="memory-link link-one" aria-hidden="true" />
+        <span className="memory-link link-two" aria-hidden="true" />
+        <span className="memory-link link-three" aria-hidden="true" />
+        <div className="memory-current-node">
+          <span className="memory-node-kicker">CURRENT</span>
+          <strong>Incident</strong>
+          <small>investigating</small>
+        </div>
+        {nodes.map(node => (
+          <button
+            type="button"
+            key={node.id}
+            className={`memory-map-node ${node.position} ${selectedId === node.id ? "selected" : ""}`}
+            onClick={() => onSelect(node.id)}
+            aria-label={`Inspect ${node.title}`}
+            aria-pressed={selectedId === node.id}
+          >
+            <span className="memory-node-dot" />
+            <span className="memory-node-copy">
+              <b>{node.id}</b>
+              <small>{node.service}</small>
+            </span>
+          </button>
+        ))}
+      </div>
+      <p className="memory-map-caution">
+        <ShieldAlert className="h-3.5 w-3.5" />
+        Select a memory to inspect its failed path, verified path, and lesson.
+      </p>
+    </section>
+  );
+}
+
 function MemoryPage({
   live,
   authenticated,
@@ -1260,6 +1655,8 @@ function MemoryPage({
   onSeed: () => void;
   onAnalyze: () => void;
 }) {
+  const [memoryView, setMemoryView] = useState<"map" | "list">("map");
+  const [selectedMemoryId, setSelectedMemoryId] = useState<string | null>(null);
   return (
     <>
       <div className="page-heading">
@@ -1360,27 +1757,55 @@ function MemoryPage({
           <h2>Postmortems & lessons</h2>
           <p>Fictional examples are labelled; no customer data is present.</p>
         </div>
-        <Button
-          onClick={live && !authenticated ? onSignIn : onSeed}
-          disabled={seeding || !live || authLoading}
-          variant="outline"
-          className="seed-button"
-        >
-          {seeding ? (
-            <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
-          ) : seeded ? (
-            <Check className="mr-2 h-4 w-4" />
-          ) : live && !authenticated ? (
-            <Fingerprint className="mr-2 h-4 w-4" />
-          ) : (
-            <Database className="mr-2 h-4 w-4" />
-          )}
-          {seeded
-            ? "Synthetic pack loaded"
-            : live && !authenticated
-              ? "Sign in for your private pack"
-              : "Load synthetic pack into my bank"}
-        </Button>
+        <div className="memory-toolbar-actions">
+          <div
+            className="memory-view-toggle"
+            role="tablist"
+            aria-label="Memory view"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={memoryView === "map"}
+              className={memoryView === "map" ? "selected" : ""}
+              onClick={() => setMemoryView("map")}
+            >
+              <Network className="h-3.5 w-3.5" />
+              Map
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={memoryView === "list"}
+              className={memoryView === "list" ? "selected" : ""}
+              onClick={() => setMemoryView("list")}
+            >
+              <History className="h-3.5 w-3.5" />
+              List
+            </button>
+          </div>
+          <Button
+            onClick={live && !authenticated ? onSignIn : onSeed}
+            disabled={seeding || !live || authLoading}
+            variant="outline"
+            className="seed-button"
+          >
+            {seeding ? (
+              <LoaderCircle className="mr-2 h-4 w-4 animate-spin" />
+            ) : seeded ? (
+              <Check className="mr-2 h-4 w-4" />
+            ) : live && !authenticated ? (
+              <Fingerprint className="mr-2 h-4 w-4" />
+            ) : (
+              <Database className="mr-2 h-4 w-4" />
+            )}
+            {seeded
+              ? "Synthetic pack loaded"
+              : live && !authenticated
+                ? "Sign in for your private pack"
+                : "Load synthetic pack into my bank"}
+          </Button>
+        </div>
       </div>
       {live && !authenticated && (
         <div className="auth-required-banner">
@@ -1407,53 +1832,71 @@ function MemoryPage({
           </span>
         </div>
       )}
-      <div className="memory-list">
-        {DEMO_INCIDENTS.map((item, index) => (
-          <article className="memory-card" key={item.id}>
-            <div className="memory-card-top">
-              <div className="memory-index">0{index + 1}</div>
-              <div className="memory-card-title">
-                <div>
-                  <span className="memory-incident-id">{item.id}</span>
-                  <span className="memory-date">{item.occurred}</span>
+      {memoryView === "map" && (
+        <MemoryConstellation
+          outcomes={outcomes}
+          selectedId={selectedMemoryId}
+          onSelect={setSelectedMemoryId}
+        />
+      )}
+      {selectedMemoryId && memoryView === "map" && (
+        <div className="selected-memory-note">
+          <CheckCircle2 className="h-4 w-4" />
+          <span>
+            <b>{selectedMemoryId}</b> selected. Switch to List to inspect the
+            complete evidence ledger.
+          </span>
+        </div>
+      )}
+      {memoryView === "list" && (
+        <div className="memory-list">
+          {DEMO_INCIDENTS.map((item, index) => (
+            <article className="memory-card" key={item.id}>
+              <div className="memory-card-top">
+                <div className="memory-index">0{index + 1}</div>
+                <div className="memory-card-title">
+                  <div>
+                    <span className="memory-incident-id">{item.id}</span>
+                    <span className="memory-date">{item.occurred}</span>
+                  </div>
+                  <h3>{item.title}</h3>
+                  <span className="memory-service">
+                    <Activity className="h-3 w-3" />
+                    {item.service}
+                  </span>
                 </div>
-                <h3>{item.title}</h3>
-                <span className="memory-service">
-                  <Activity className="h-3 w-3" />
-                  {item.service}
+                <span className="memory-origin-tag">SYNTHETIC</span>
+              </div>
+              <div className="memory-card-body">
+                <div>
+                  <span className="memory-line-label">WHAT HAPPENED</span>
+                  <p>{item.trigger}</p>
+                </div>
+                <div>
+                  <span className="memory-line-label memory-line-failed">
+                    <X className="h-3 w-3" />
+                    WHAT DIDN'T WORK
+                  </span>
+                  <p>{item.failedAction}</p>
+                </div>
+                <div>
+                  <span className="memory-line-label memory-line-success">
+                    <Check className="h-3 w-3" />
+                    VERIFIED RESOLUTION
+                  </span>
+                  <p>{item.resolution}</p>
+                </div>
+              </div>
+              <div className="memory-lesson">
+                <Sparkles className="h-3.5 w-3.5 shrink-0" />
+                <span>
+                  <b>LESSON:</b> {item.lesson}
                 </span>
               </div>
-              <span className="memory-origin-tag">SYNTHETIC</span>
-            </div>
-            <div className="memory-card-body">
-              <div>
-                <span className="memory-line-label">WHAT HAPPENED</span>
-                <p>{item.trigger}</p>
-              </div>
-              <div>
-                <span className="memory-line-label memory-line-failed">
-                  <X className="h-3 w-3" />
-                  WHAT DIDN'T WORK
-                </span>
-                <p>{item.failedAction}</p>
-              </div>
-              <div>
-                <span className="memory-line-label memory-line-success">
-                  <Check className="h-3 w-3" />
-                  VERIFIED RESOLUTION
-                </span>
-                <p>{item.resolution}</p>
-              </div>
-            </div>
-            <div className="memory-lesson">
-              <Sparkles className="h-3.5 w-3.5 shrink-0" />
-              <span>
-                <b>LESSON:</b> {item.lesson}
-              </span>
-            </div>
-          </article>
-        ))}
-      </div>
+            </article>
+          ))}
+        </div>
+      )}
       {outcomes.length > 0 && (
         <>
           <div className="section-toolbar outcomes-toolbar">
